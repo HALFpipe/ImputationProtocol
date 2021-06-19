@@ -1,0 +1,62 @@
+#!/bin/bash
+
+export reference="/localdata/mds/HM3_b37"
+
+plink --bfile "${datafileraw}" --hwe "1e-6" --geno "0.05" --maf "0.01" --noweb --make-bed --out "$(basename ${datafileraw})_filtered"
+
+awk '{print $2}' "${reference}.bim" > "HM3_b37.snplist.txt"
+
+plink --bfile "${datafile}" --extract "HM3_b37.snplist.txt" --make-bed --noweb --out "local"
+
+awk '{ \
+if (($5=="T" && $6=="A") || ($5=="A" && $6=="T") || ($5=="C" && $6=="G") || ($5=="G" && $6=="C")) \
+print $2, "ambig"; \
+else print $2; \
+}' "${datafile}.bim" | grep -v "ambig" > "local.snplist.txt"
+
+plink --bfile "${reference}" --extract "local.snplist.txt" --make-bed --noweb --out external
+
+plink --bfile "local" --bmerge "external.bed" "external.bim" "external.fam" --make-bed --noweb --out "HM3_b37merge"
+
+if [ -f "HM3_b37merge-merge.missnp" ]; then
+
+plink --bfile "local" --flip "HM3_b37merge-merge.missnp" --make-bed --noweb --out "flipped"
+
+plink --bfile "flipped" --bmerge "external.bed" "external.bim" "external.fam" --make-bed --noweb --out "HM3_b37merge"
+
+fi
+
+plink --bfile "HM3_b37merge" --cluster --mind "0.05" --mds-plot "4" --extract "local.snplist.txt" --noweb --out "HM3_b37mds"
+
+awk 'BEGIN{OFS=","}; {print $1, $2, $3, $4, $5, $6, $7}' HM3_b37mds.mds >> HM3_b37mds2R.mds.csv
+
+Rscript - <<EOF
+library(calibrate)
+
+mds.cluster = read.csv("HM3_b37mds2R.mds.csv", header=T)
+
+colors=rep("red", length(mds.cluster\$C1))
+colors[which(mds.cluster\$FID == "CEU")] <- "lightblue"
+colors[which(mds.cluster\$FID == "CHB")] <- "brown"
+colors[which(mds.cluster\$FID == "YRI")] <- "yellow"
+colors[which(mds.cluster\$FID == "TSI")] <- "green"
+colors[which(mds.cluster\$FID == "JPT")] <- "purple"
+colors[which(mds.cluster\$FID == "CHD")] <- "orange"
+colors[which(mds.cluster\$FID == "MEX")] <- "grey50"
+colors[which(mds.cluster\$FID == "GIH")] <- "black"
+colors[which(mds.cluster\$FID == "ASW")] <- "darkolivegreen"
+colors[which(mds.cluster\$FID == "LWK")] <- "magenta"
+colors[which(mds.cluster\$FID == "MKK")] <- "darkblue"
+
+pdf(file="mdsplot.pdf", width=7, height=7)
+
+plot(rev(mds.cluster\$C2), rev(mds.cluster\$C1),
+col=rev(colors),
+ylab="Dimension 1", xlab="Dimension 2", pch=20)
+
+legend("topright",
+c("My Sample", "CEU", "CHB", "YRI", "TSI", "JPT", "CHD", "MEX", "GIH", "ASW","LWK", "MKK"),
+fill=c("red", "lightblue", "brown", "yellow", "green", "purple", "orange", "grey50", "black", "darkolivegreen", "magenta", "darkblue"))
+
+dev.off()
+EOF

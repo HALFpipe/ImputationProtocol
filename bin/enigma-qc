@@ -1,0 +1,29 @@
+#!/bin/bash
+
+awk '{ \
+if (($5=="T" && $6=="A") || ($5=="A" && $6=="T") || ($5=="C" && $6=="G") || ($5=="G" && $6=="C")) \
+print $2, "ambig"; \
+else print $2; \
+}' "${datafileraw}.bim" | grep "ambig" | awk '{print $1}' > ambig.list
+
+plink --bfile ${datafileraw} --exclude "ambig.list" --make-founders --out "lastQC" --maf 0.01 --hwe 0.000001 --make-bed --noweb
+
+awk '{print $2, $1":"$4}' "lastQC.bim" > updateSNPs.txt
+
+plink --bfile "lastQC" --update-name "updateSNPs.txt" --make-bed --out "lastQCb37" --noweb --list-duplicate-vars
+export lastqc="lastQCb37"
+
+if [[ $(wc -l <lastQCb37.dupvar) -ge 1 ]]; then
+
+plink2 --bfile "lastQCb37" --rm-dup "exclude-mismatch" --out "lastQCb37_noduplicates" --make-bed
+export lastqc="lastQCb37_noduplicates"
+
+fi
+
+for i in {1..22}; do
+
+plink2 --bfile "${lastqc}" --chr "${i}" --recode "vcf" --out "${study_name}_chr${i}"
+
+vcf-sort "${study_name}_chr${i}.vcf" | bgzip -c > /data/input/${study_name}_chr${i}.vcf.gz
+
+done

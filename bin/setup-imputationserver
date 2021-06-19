@@ -1,0 +1,21 @@
+#!/bin/bash
+
+export HADOOP_CONF_DIR=/data/config
+
+cp -rnv /opt/cloudgene /data/cloudgene/runtime
+export PATH=/data/cloudgene/runtime:${PATH}
+
+cloudgene verify-cluster
+
+cloudgene clone /data/cloudgene/runtime/apps.yaml
+
+mkdir -p -v /data/output
+
+cloudgene run imputationserver \
+     --conf ${HADOOP_CONF_DIR} \
+    --refpanel 1000g-phase-3-v5 \
+    --population eur \
+    --files /data/input \
+    --output /data/output \
+    --user ${USER} \
+    --show-log --show-out

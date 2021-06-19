@@ -1,0 +1,65 @@
+#!/bin/bash
+
+export CORES="4"
+
+source /usr/lib/bigtop-utils/bigtop-detect-javahome
+
+export HADOOP_HOME=/usr/lib/hadoop
+export HADOOP_LIBEXEC_DIR=/usr/lib/hadoop/libexec
+
+mkdir -p -v logs
+export HADOOP_LOG_DIR=/data/logs
+
+mkdir -p -v pids
+export HADOOP_PID_DIR=/data/pids
+
+mkdir -p -v config
+export HADOOP_CONF_DIR=/data/config
+
+cp -rnv ${HADOOP_HOME}/etc/hadoop/* ${HADOOP_CONF_DIR}
+
+sed -e s/AMOUNT/${CORES}/ -e s/HOSTNAME/localhost/ /usr/bin/mapred-site-template.xml > ${HADOOP_CONF_DIR}/mapred-site.xml
+
+sed s/HOSTNAME/localhost/ /usr/bin/core-site-template.xml > ${HADOOP_CONF_DIR}/core-site.xml
+
+sed -i "s+/var/lib/hadoop-hdfs/cache+/data/hadoop/cache+g" ${HADOOP_CONF_DIR}/*
+
+sed -e s+HADOOP_LOG_DIR+${HADOOP_LOG_DIR}+ log4j.properties > ${HADOOP_CONF_DIR}/log4j.properties
+
+echo localhost > $HADOOP_CONF_DIR/masters
+
+cat <<EOF >> ${HADOOP_CONF_DIR}/hadoop-env.sh
+
+# custom
+
+export HADOOP_LOG_DIR=${HADOOP_LOG_DIR}
+export HADOOP_PID_DIR=${HADOOP_PID_DIR}
+export YARN_LOG_DIR=${HADOOP_LOG_DIR} # no effect if using Hadoop 1
+export YARN_PID_DIR=${HADOOP_PID_DIR} # no effect if using Hadoop 1
+export HADOOP_SECURE_DN_PID_DIR=${HADOOP_PID_DIR}
+export HADOOP_HOME_WARN_SUPPRESS=TRUE
+
+export JAVA_HOME=${JAVA_HOME}
+EOF
+
+hdfs namenode -format -nonInteractive -force
+
+/usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start namenode
+/usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start secondarynamenode
+/usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start datanode
+
+env HADOOP_HOME=/usr/lib/hadoop-0.20-mapreduce /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start jobtracker
+env HADOOP_HOME=/usr/lib/hadoop-0.20-mapreduce /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start tasktracker
+
+hadoop fs -mkdir -p /tmp
+hadoop fs -chmod -R 1777 /tmp
+hadoop fs -mkdir -p /var
+hadoop fs -mkdir -p /var/log
+hadoop fs -chmod -R 1775 /var/log
+
+hadoop fs -mkdir -p /data/hadoop/cache/${USER}/mapred/staging
+hadoop fs -chmod 1777 /data/hadoop/cache/${USER}/mapred/staging
+hadoop fs -chown -R ${USER} /data/hadoop/cache/${USER}
+
+hadoop fs -mkdir -p /user/${USER}
+hadoop fs -chown ${USER} /user/${USER}
