@@ -1,24 +1,36 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-export CORES="4"
+OPTS=`getopt -o n: --long n-cores: -n 'setup-hadoop' -- "$@"`
+eval set -- "$OPTS"
+
+N_CORES=4
+
+while true ; do
+    case "$1" in
+        -n|--n-cores)
+            case "$2" in
+                "") shift 2 ;;
+                *) N_CORES=$2 ; shift 2 ;;
+            esac ;;
+        --) shift ; break ;;
+        *) echo "Internal error!" ; exit 1 ;;
+    esac
+done
 
 source /usr/lib/bigtop-utils/bigtop-detect-javahome
 
 export HADOOP_HOME=/usr/lib/hadoop
 export HADOOP_LIBEXEC_DIR=/usr/lib/hadoop/libexec
 
-mkdir -p -v logs
 export HADOOP_LOG_DIR=/data/logs
-
-mkdir -p -v pids
 export HADOOP_PID_DIR=/data/pids
-
-mkdir -p -v config
 export HADOOP_CONF_DIR=/data/config
+
+mkdir -p -v ${HADOOP_LOG_DIR} ${HADOOP_PID_DIR} ${HADOOP_CONF_DIR}
 
 cp -rnv ${HADOOP_HOME}/etc/hadoop/* ${HADOOP_CONF_DIR}
 
-sed -e s/AMOUNT/${CORES}/ -e s/HOSTNAME/localhost/ /usr/bin/mapred-site-template.xml > ${HADOOP_CONF_DIR}/mapred-site.xml
+sed -e s/AMOUNT/${N_CORES}/ -e s/HOSTNAME/localhost/ /usr/bin/mapred-site-template.xml > ${HADOOP_CONF_DIR}/mapred-site.xml
 
 sed s/HOSTNAME/localhost/ /usr/bin/core-site-template.xml > ${HADOOP_CONF_DIR}/core-site.xml
 

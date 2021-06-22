@@ -1,36 +1,89 @@
 #!/bin/bash
 
-export reference="/localdata/mds/HM3_b37"
+#!/usr/bin/env bash
 
-plink --bfile "${datafileraw}" --hwe "1e-6" --geno "0.05" --maf "0.01" --noweb --make-bed --out "$(basename ${datafileraw})_filtered"
+OPTS=`getopt -o b:v --long bfile:,verbose -n 'imputationserver' -- "$@"`
+eval set -- "$OPTS"
 
-awk '{print $2}' "${reference}.bim" > "HM3_b37.snplist.txt"
+VERBOSE=0
 
-plink --bfile "${datafile}" --extract "HM3_b37.snplist.txt" --make-bed --noweb --out "local"
+while true ; do
+    case "$1" in
+        -b|--bfile)
+            case "$2" in
+                "") shift 2 ;;
+                *) BFILE=$2 ; shift 2 ;;
+            esac ;;
+        -v|--verbose) VERBOSE=1 ; shift ;;
+        --) shift ; break ;;
+        *) echo "Internal error!" ; exit 1 ;;
+    esac
+done
 
-awk '{ \
-if (($5=="T" && $6=="A") || ($5=="A" && $6=="T") || ($5=="C" && $6=="G") || ($5=="G" && $6=="C")) \
-print $2, "ambig"; \
-else print $2; \
-}' "${datafile}.bim" | grep -v "ambig" > "local.snplist.txt"
+fail() {
+    printf '%s\n' "$1" >&2    
+    exit "${2-1}"  
+}
 
-plink --bfile "${reference}" --extract "local.snplist.txt" --make-bed --noweb --out external
+if [[ ! -v BFILE ]]; then
+    fail "Missing required --bfile parameter"
+fi
 
-plink --bfile "local" --bmerge "external.bed" "external.bim" "external.fam" --make-bed --noweb --out "HM3_b37merge"
+run_cmd() {
+    cmd="$*"
+
+    printf '%s\n' --------------------
+
+    if [ "$VERBOSE" = "1" ]; then
+	printf "$cmd\n"
+    fi
+
+    eval "$@"
+
+    EXIT_CODE=$?
+
+    if [[ $EXIT_CODE -gt 0 ]]; then
+	echo "ERROR: command exited with nonzero status $EXIT_CODE"
+    fi
+
+    printf '%s\n' --------------------
+
+    return $EXIT_CODE
+}
+
+REFERENCE="/localdata/mds/HM3_b37"
+
+BFILE_FILTERED="$(basename ${BFILE}).filtered"
+
+run_cmd plink --bfile "${BFILE}" --hwe "1e-6" --geno "0.05" --maf "0.01" --noweb --make-bed --out ${BFILE_FILTERED}
+
+run_cmd "awk '{print \$2}' ${REFERENCE}.bim > HM3_b37.snplist.txt"
+
+run_cmd plink --bfile "${BFILE_FILTERED}" --extract HM3_b37.snplist.txt --make-bed --noweb --out "local"
+
+run_cmd "awk '{ \
+if ((\$5==\"T\" && \$6==\"A\") || (\$5==\"A\" && \$6==\"T\") || (\$5==\"C\" && \$6==\"G\") || (\$5==\"G\" && \$6==\"C\")) \
+print \$2, \"ambig\"; \
+else print \$2; \
+}' ${BFILE_FILTERED}.bim | grep -v ambig > local.snplist.txt"
+
+run_cmd plink --bfile "${REFERENCE}" --extract "local.snplist.txt" --make-bed --noweb --out external
+
+run_cmd plink --bfile "local" --bmerge "external.bed" "external.bim" "external.fam" --make-bed --noweb --out "HM3_b37merge"
 
 if [ -f "HM3_b37merge-merge.missnp" ]; then
 
-plink --bfile "local" --flip "HM3_b37merge-merge.missnp" --make-bed --noweb --out "flipped"
+    run_cmd plink --bfile "local" --flip "HM3_b37merge-merge.missnp" --make-bed --noweb --out "flipped"
 
-plink --bfile "flipped" --bmerge "external.bed" "external.bim" "external.fam" --make-bed --noweb --out "HM3_b37merge"
+    run_cmd plink --bfile "flipped" --bmerge "external.bed" "external.bim" "external.fam" --make-bed --noweb --out "HM3_b37merge"
 
 fi
 
-plink --bfile "HM3_b37merge" --cluster --mind "0.05" --mds-plot "4" --extract "local.snplist.txt" --noweb --out "HM3_b37mds"
+run_cmd plink --bfile "HM3_b37merge" --cluster --mind "0.05" --mds-plot "4" --extract "local.snplist.txt" --noweb --out "HM3_b37mds"
 
-awk 'BEGIN{OFS=","}; {print $1, $2, $3, $4, $5, $6, $7}' HM3_b37mds.mds >> HM3_b37mds2R.mds.csv
+run_cmd "awk 'BEGIN{OFS=\",\"}; {print \$1, \$2, \$3, \$4, \$5, \$6, \$7}' HM3_b37mds.mds >> HM3_b37mds2R.mds.csv"
 
-Rscript - <<EOF
+run_cmd 'Rscript - <<EOF
 library(calibrate)
 
 mds.cluster = read.csv("HM3_b37mds2R.mds.csv", header=T)
@@ -59,4 +112,4 @@ c("My Sample", "CEU", "CHB", "YRI", "TSI", "JPT", "CHD", "MEX", "GIH", "ASW","LW
 fill=c("red", "lightblue", "brown", "yellow", "green", "purple", "orange", "grey50", "black", "darkolivegreen", "magenta", "darkblue"))
 
 dev.off()
-EOF
+EOF'

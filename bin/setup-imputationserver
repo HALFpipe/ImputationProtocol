@@ -2,20 +2,15 @@
 
 export HADOOP_CONF_DIR=/data/config
 
-cp -rnv /opt/cloudgene /data/cloudgene/runtime
-export PATH=/data/cloudgene/runtime:${PATH}
+mkdir -p /data/cloudgene
+cp -rnv /opt/cloudgene/* /data/cloudgene/
+export PATH=/data/cloudgene:${PATH}
 
 cloudgene verify-cluster
 
-cloudgene clone /data/cloudgene/runtime/apps.yaml
+cloudgene clone /data/cloudgene/apps.yaml
 
-mkdir -p -v /data/output
+chmod -R +w /data/cloudgene/apps/imputationserver  # needs to be writable because it will be used as a temp dir
+chmod -R -w /data/cloudgene/apps/1000g-phase-3-v5  # otherwise cloudgene will delete the files on import to hadoop
 
-cloudgene run imputationserver \
-     --conf ${HADOOP_CONF_DIR} \
-    --refpanel 1000g-phase-3-v5 \
-    --population eur \
-    --files /data/input \
-    --output /data/output \
-    --user ${USER} \
-    --show-log --show-out
+mkdir -p -v /data/input /data/output

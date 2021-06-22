@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+
+OPTS=`getopt -o p:v --long population:,verbose -n 'imputationserver' -- "$@"`
+eval set -- "$OPTS"
+
+VERBOSE=0
+
+while true ; do
+    case "$1" in
+        -p|--population)
+            case "$2" in
+                "") shift 2 ;;
+                *) POPULATION=$2 ; shift 2 ;;
+            esac ;;
+        -v|--verbose) VERBOSE=1 ; shift ;;
+        --) shift ; break ;;
+        *) echo "Internal error!" ; exit 1 ;;
+    esac
+done
+
+fail() {
+    printf '%s\n' "$1" >&2    
+    exit "${2-1}"  
+}
+
+if [[ ! -v POPULATION ]]; then
+    fail "Missing required --population parameter"
+fi
+
+run_cmd() {
+    cmd="$*"
+
+    printf '%s\n' --------------------
+
+    if [ "$VERBOSE" = "1" ]; then
+	printf "$cmd\n"
+    fi
+
+    ( "$@" )
+
+    EXIT_CODE=$?
+
+    if [[ $EXIT_CODE -gt 0 ]]; then
+	echo "ERROR: command exited with nonzero status $EXIT_CODE"
+    fi
+
+    printf '%s\n' --------------------
+
+    return $EXIT_CODE
+}
+
+EXTRA_FLAGS=""
+if [ "$VERBOSE" = "1" ]; then
+    EXTRA_FLAGS="--show-log --show-out"
+fi
+
+run_cmd cloudgene run imputationserver \
+    --conf ${HADOOP_CONF_DIR} \
+    --refpanel 1000g-phase-3-v5 \
+    --population ${POPULATION} \
+    --files /data/input \
+    --output /data/output \
+    --user ${USER} ${EXTRA_FLAGS}

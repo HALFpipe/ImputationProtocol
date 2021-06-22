@@ -1,29 +1,84 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-awk '{ \
-if (($5=="T" && $6=="A") || ($5=="A" && $6=="T") || ($5=="C" && $6=="G") || ($5=="G" && $6=="C")) \
-print $2, "ambig"; \
-else print $2; \
-}' "${datafileraw}.bim" | grep "ambig" | awk '{print $1}' > ambig.list
+OPTS=`getopt -o s:b:v --long study-name:,bfile:,verbose -n 'enigma-qc' -- "$@"`
+eval set -- "$OPTS"
 
-plink --bfile ${datafileraw} --exclude "ambig.list" --make-founders --out "lastQC" --maf 0.01 --hwe 0.000001 --make-bed --noweb
+VERBOSE=0
 
-awk '{print $2, $1":"$4}' "lastQC.bim" > updateSNPs.txt
+while true ; do
+    case "$1" in
+        -b|--bfile)
+            case "$2" in
+                "") shift 2 ;;
+                *) BFILE=$2 ; shift 2 ;;
+            esac ;;
+        -s|--study-name)
+            case "$2" in
+                "") shift 2 ;;
+                *) STUDY_NAME=$2 ; shift 2 ;;
+            esac ;;
+        -v|--verbose) VERBOSE=1 ; shift ;;
+        --) shift ; break ;;
+        *) echo "Internal error!" ; exit 1 ;;
+    esac
+done
 
-plink --bfile "lastQC" --update-name "updateSNPs.txt" --make-bed --out "lastQCb37" --noweb --list-duplicate-vars
-export lastqc="lastQCb37"
+fail() {
+    printf '%s\n' "$1" >&2    
+    exit "${2-1}"  
+}
 
-if [[ $(wc -l <lastQCb37.dupvar) -ge 1 ]]; then
-
-plink2 --bfile "lastQCb37" --rm-dup "exclude-mismatch" --out "lastQCb37_noduplicates" --make-bed
-export lastqc="lastQCb37_noduplicates"
-
+if [ ! -d /data/input ]; then
+    fail "Imputation server input folder \"/data/input\" does not exist. You should create it and try again"
 fi
 
-for i in {1..22}; do
+if [ ! $(ls -A /data/input) ]; then
+    fail "Imputation server input folder \"/data/input\" is not empty. You should check and/or backup its contents, run \"rm /data/input/*\", and try again"
+fi
 
-plink2 --bfile "${lastqc}" --chr "${i}" --recode "vcf" --out "${study_name}_chr${i}"
+if [[ ! -v STUDY_NAME ]]; then
+    fail "Missing required --study-name parameter"
+fi
 
-vcf-sort "${study_name}_chr${i}.vcf" | bgzip -c > /data/input/${study_name}_chr${i}.vcf.gz
+if [[ ! -v BFILE ]]; then
+    fail "Missing required --bfile parameter"
+fi
 
+run_cmd() {
+    cmd="$*"
+
+    printf '%s\n' --------------------
+
+    if [ "$VERBOSE" = "1" ]; then
+	printf "$cmd\n"
+    fi
+
+    eval "$@"
+
+    EXIT_CODE=$?
+
+    if [[ $EXIT_CODE -gt 0 ]]; then
+	echo "ERROR: command exited with nonzero status $EXIT_CODE"
+    fi
+
+    printf '%s\n' --------------------
+
+    return $EXIT_CODE
+}
+
+run_cmd plink --bfile ${BFILE} --make-founders --out "lastQC" --maf 0.01 --hwe 0.000001 --make-bed --noweb
+
+run_cmd "awk '{print \$2, \$1\":\"\$4}' lastQC.bim > updateSNPs.txt"
+
+run_cmd plink --bfile "lastQC" --update-name "updateSNPs.txt" --make-bed --out "lastQCb37" --noweb --list-duplicate-vars
+
+export LASTQC="lastQCb37"
+if [[ $(wc -l <lastQCb37.dupvar) -ge 1 ]]; then
+    run_cmd plink2 --bfile "lastQCb37" --rm-dup "exclude-mismatch" --out "lastQCb37_noduplicates" --make-bed
+    export LASTQC="lastQCb37_noduplicates"
+fi
+
+for CHR in {1..22}; do
+    run_cmd plink2 --bfile "${LASTQC}" --chr "${CHR}" --recode "vcf" --out "${STUDY_NAME}_chr${CHR}"
+    run_cmd "vcf-sort ${STUDY_NAME}_chr${CHR}.vcf | bgzip -c > /data/input/${STUDY_NAME}_chr${CHR}.vcf.gz"
 done
