@@ -1,0 +1,505 @@
+#!/usr/bin/env python3
+
+from __future__ import annotations
+from typing import Optional
+
+import re
+import gzip
+from argparse import ArgumentParser
+from dataclasses import dataclass, field
+import logging
+from math import inf, nan, isfinite
+from subprocess import call
+from pathlib import Path
+
+from scipy.stats import fisher_exact
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger()
+
+parser = ArgumentParser()
+parser.add_argument("--bfile", type=str, required=True)
+parser.add_argument("--population", type=str, required=True)
+parser.add_argument(
+    "--legends", action="extend", nargs="+", type=str, required=True
+)
+parser.add_argument("--panel", type=str, required=True)
+parser.add_argument("--sfh", type=float, default=0.2)
+parser.add_argument("--frq-th", type=float, default=inf)
+
+args = parser.parse_args()
+
+chromosome_regex = re.compile(r"chr(?P<chromosome>\d+|X|Y)")
+
+
+@dataclass
+class MatchResult:
+    variant: Optional[Variant] = None
+    messages: list[str] = field(default_factory=list)
+
+
+@dataclass
+class Variant:
+    id: str
+
+    chromosome: int
+    position: Optional[int]
+
+    allele_a: str
+    allele_b: str
+
+    frequency_a: float
+    frequency_b: float
+
+    n_observations: int
+
+    actions: list[str] = field(default_factory=list)
+
+    def copy(self):
+        return Variant(
+            id=self.id,
+            chromosome=self.chromosome,
+            position=self.position,
+            allele_a=self.allele_a,
+            allele_b=self.allele_b,
+            frequency_a=self.frequency_a,
+            frequency_b=self.frequency_b,
+            n_observations=self.n_observations,
+            actions=[*self.actions],
+        )
+
+    @property
+    def alleles(self) -> tuple[str, str]:
+        return (self.allele_a, self.allele_b)
+
+    @property
+    def genotype(self) -> frozenset:
+        return frozenset([self.allele_a, self.allele_b])
+
+    @property
+    def counts(self) -> tuple[int, int]:
+        allele_a_count = round(self.frequency_a * self.n_observations)
+        return (allele_a_count, self.n_observations - allele_a_count)
+
+    @property
+    def is_indel(self) -> bool:
+        return (
+            len(self.allele_a) != len(self.allele_b) or
+            self.genotype.issubset(["I", "D", "0"])
+        )
+
+    @property
+    def is_ambiguous(self) -> bool:
+        return self.genotype in frozenset([
+            frozenset(["A", "T"]),
+            frozenset(["C", "G"]),
+        ])
+
+    def equals_alleles(self, other: Variant) -> bool:
+        return (
+            self.allele_a == other.allele_a and
+            self.allele_b == other.allele_b
+        )
+
+    def match_alleles_and_frequency(self, other: Variant) -> MatchResult:
+        if not isfinite(self.frequency_a):
+            return MatchResult(messages=[(
+                f"Sample frequency is {self.frequency_a}"
+            )])
+
+        match_result = self.match_alleles(other)
+
+        if match_result.variant is not None:
+            frq_diff = abs(
+                match_result.variant.frequency_a - other.frequency_a
+            )
+            if frq_diff > args.frq_th:
+                match_result.messages.append(
+                    f"Sample frequency ({match_result.variant.frequency_a}) "
+                    f"is more than frq-th ({args.frq_th}) different "
+                    f"({frq_diff}) from reference frequency "
+                    f"({other.frequency_a})"
+                )
+
+        return match_result
+
+    def match_alleles(self, other: Variant) -> MatchResult:
+        assert self.chromosome == other.chromosome
+        assert self.position == other.position
+
+        if self.is_ambiguous:
+            return self.match_alleles_ambiguous(other)
+
+        if self.is_indel:
+            if not other.is_indel:
+                return MatchResult(messages=[(
+                    "Reference variant is not an indel"
+                )])
+
+            if self.genotype.issubset(frozenset(["I", "D", "0"])):
+                return self.match_alleles_indel(other)
+
+        messages = []
+
+        if "0" in self.genotype:
+            return self.match_alleles_incomplete(other)
+
+        if self.equals_alleles(other):
+            return MatchResult(variant=self)
+
+        messages.append("Mismatched alleles")
+
+        turned = self.turn()
+        if turned.equals_alleles(other):
+            return MatchResult(variant=turned)
+
+        if "flip" not in self.actions:
+            flipped = self.flip()
+            if flipped is not None:
+                return flipped.match_alleles(other)
+            messages.append("Can not flip")
+
+        return MatchResult(messages=messages)
+
+    def match_alleles_indel(self, other: Variant) -> MatchResult:
+        filled = self.copy()
+        filled.actions.append("fill_indel")
+
+        filled.allele_a = other.allele_a
+        filled.allele_b = other.allele_b
+
+        if len(other.allele_a) > len(other.allele_b):
+            # other.allele_a is the insertion
+
+            if self.allele_a == "I":
+                if self.allele_b == "D" or self.allele_b == "0":
+                    return MatchResult(variant=filled)
+
+            elif self.allele_a == "D":
+                if self.allele_b == "I" or self.allele_b == "0":
+                    return MatchResult(variant=filled.turn())
+
+            elif self.allele_a == "0":
+                if self.allele_b == "I":
+                    return MatchResult(variant=filled.turn())
+
+                elif self.allele_b == "D":
+                    return MatchResult(variant=filled)
+
+        else:
+            # other.allele_b is the insertion
+
+            if self.allele_a == "I":
+                if self.allele_b == "D" or self.allele_b == "0":
+                    return MatchResult(variant=filled.turn())
+
+            elif self.allele_a == "D":
+                if self.allele_b == "I" or self.allele_b == "0":
+                    return MatchResult(variant=filled)
+
+            elif self.allele_a == "0":
+                if self.allele_b == "I":
+                    return MatchResult(variant=filled)
+
+                elif self.allele_b == "D":
+                    return MatchResult(variant=filled.turn())
+
+        return MatchResult()
+
+    def match_alleles_ambiguous(self, other: Variant) -> MatchResult:
+        if self.genotype != other.genotype:
+            return MatchResult(messages=[(
+                "Mismatched alleles"
+            )])
+
+        ambiguous_matched = None
+
+        if (
+            abs(self.frequency_a - other.frequency_a) >
+            abs(self.frequency_b - other.frequency_a)
+        ):
+            if self.equals_alleles(other):
+                ambiguous_matched = self.flip().turn()
+            else:
+                ambiguous_matched = self.turn()
+
+        else:
+            if self.equals_alleles(other):
+                ambiguous_matched = self
+            else:
+                ambiguous_matched = self.flip()
+
+        if ambiguous_matched is None:
+            return MatchResult()
+
+        if (
+            abs(ambiguous_matched.frequency_a - 0.5) > args.sfh * 0.5 and
+            abs(other.frequency_a - 0.5) > args.sfh * 0.5
+        ):
+            return MatchResult(variant=ambiguous_matched)
+
+        return MatchResult(messages=[(
+            f"Sample frequency ({ambiguous_matched.frequency_a}) or "
+            f"reference frequency ({other.frequency_a}) is within "
+            f"interval [{0.5 - 0.5 * args.sfh}, {0.5 + 0.5 * args.sfh}]"
+        )])
+
+    def match_alleles_incomplete(self, other: Variant) -> MatchResult:
+        filled = self.copy()
+        filled.actions.append("fill")
+
+        if (
+            self.allele_a == "0" and
+            self.allele_b == other.allele_b
+        ):
+            filled.allele_a = other.allele_a
+            return filled.match_alleles(other)
+
+        if (
+            self.allele_a == "0" and
+            self.allele_b == other.allele_a
+        ):
+            filled.allele_a = other.allele_b
+            return filled.match_alleles(other)
+
+        if (
+            self.allele_a == other.allele_a and
+            self.allele_b == "0"
+        ):
+            filled.allele_b = other.allele_b
+            return filled.match_alleles(other)
+
+        if (
+            self.allele_a == other.allele_b and
+            self.allele_b == "0"
+        ):
+            filled.allele_b = other.allele_a
+            return filled.match_alleles(other)
+
+        if "flip" not in self.actions:
+            return self.flip().match_alleles_incomplete(other)
+
+        return MatchResult()
+
+    def fisher_exact(self, other) -> tuple[float, float]:
+        assert isinstance(other, Variant)
+        odds_ratio, p_value = fisher_exact(
+            table=[list(self.counts), list(other.counts)],
+        )
+        return odds_ratio, p_value
+
+    def flip(self) -> Optional[Variant]:
+        flip_dict = {
+            "A": "T",
+            "C": "G",
+            "T": "A",
+            "G": "C",
+            "0": "0",
+        }
+
+        if (
+            self.allele_a not in flip_dict or
+            self.allele_b not in flip_dict
+        ):
+            return
+
+        flipped = self.copy()
+
+        flipped.allele_a = flip_dict[self.allele_a]
+        flipped.allele_b = flip_dict[self.allele_b]
+
+        flipped.actions.append("flip")
+
+        return flipped
+
+    def turn(self) -> Variant:
+        turned = self.copy()
+
+        turned.allele_a = self.allele_b
+        turned.allele_b = self.allele_a
+
+        turned.frequency_a = self.frequency_b
+        turned.frequency_b = self.frequency_a
+
+        turned.actions.append("turn")
+
+        return turned
+
+
+panel_n_observations = 0
+with open(args.panel, "r") as panel_file_handle:
+    header = panel_file_handle.readline()
+    columns = header.split()
+
+    assert columns[0] == "sample"
+    assert columns[1] == "pop"
+    assert columns[2] == "super_pop"
+    assert columns[3] == "gender"
+
+    for line in panel_file_handle:
+        _, _, super_pop, _ = line.split()
+        if (
+            args.population == "super_pop" or
+            super_pop.lower() == args.population
+        ):
+            panel_n_observations += 2
+
+logger.info(
+    f"Found {panel_n_observations:d} samples "
+    f'for population "{args.population}"'
+)
+
+reference_variants = dict()
+
+aaf_column_name = f"{args.population}.aaf"
+
+for legend_file in args.legends:
+    match = chromosome_regex.search(legend_file)
+    chromosome = match.group("chromosome")
+
+    if chromosome in frozenset(["X", "Y"]):
+        logger.info(
+            f'Skipping chromosome {chromosome} legend file "{legend_file}"'
+        )
+        continue  # TODO
+
+    logger.info(
+        f'Reading chromosome {chromosome} legend file "{legend_file}"'
+    )
+
+    with gzip.open(legend_file, "rt") as legend_file_handle:
+        header = legend_file_handle.readline()
+        columns = header.split()
+
+        assert columns[0] == "id"
+        assert columns[1] == "position"
+        assert columns[2] == "a0"
+        assert columns[3] == "a1"
+        aaf_column_index = columns.index(aaf_column_name)
+
+        for line in legend_file_handle:
+            values = line.split()
+            id, position, allele_a, allele_b = values[:4]
+            aaf = float(values[aaf_column_index])
+
+            variant = Variant(
+                id=id,
+                chromosome=int(chromosome),
+                position=int(position),
+                allele_a=allele_a,
+                allele_b=allele_b,
+                frequency_a=1 - aaf,
+                frequency_b=aaf,
+                n_observations=panel_n_observations,
+            )
+
+            position_str = f"{chromosome}:{variant.position:d}"
+            if position_str not in reference_variants:
+                reference_variants[position_str] = list()
+            reference_variants[position_str].append(variant)
+
+frq_file = f"{args.bfile}.frq"
+if not Path(frq_file).exists():
+    call([
+        "plink",
+        "--bfile",
+        args.bfile,
+        "--out",
+        args.bfile,
+        "--freq",
+        "--nonfounders"
+    ])
+
+sample_variants_by_id = dict()
+with open(frq_file, "rt") as frq_file_handle:
+    logger.info(
+        f'Reading "{frq_file}"'
+    )
+
+    header = frq_file_handle.readline()
+    columns = header.split()
+
+    assert columns[0] == "CHR"
+    assert columns[1] == "SNP"
+    assert columns[2] == "A1"
+    assert columns[3] == "A2"
+    assert columns[4] == "MAF"
+    assert columns[5] == "NCHROBS"
+
+    for line in frq_file_handle:
+        chromosome, id, allele_a, allele_b, maf, n_observations = line.split()
+
+        if maf == "NA":
+            maf = nan
+        else:
+            maf = float(maf)
+        n_observations = int(n_observations)
+
+        variant = Variant(
+            id=id,
+            chromosome=int(chromosome),
+            position=None,
+            allele_a=allele_a,
+            allele_b=allele_b,
+            frequency_a=maf,
+            frequency_b=1 - maf,
+            n_observations=n_observations,
+        )
+
+        assert id not in sample_variants_by_id
+        sample_variants_by_id[id] = variant
+
+bim_file = f"{args.bfile}.bim"
+sample_variants = list()
+with open(bim_file, "rt") as bim_file_handle:
+    logger.info(
+        f'Reading "{bim_file}"'
+    )
+
+    for line in bim_file_handle:
+        chromosome, id, _, position, allele_a, allele_b = line.split()
+
+        variant = sample_variants_by_id[id]
+        variant.position = int(position)
+
+        assert variant.chromosome == int(chromosome)
+        assert variant.allele_a == allele_a
+        assert variant.allele_b == allele_b
+
+        sample_variants.append(variant)
+
+for sample_variant in sample_variants:
+    position_str = f"{sample_variant.chromosome}:{sample_variant.position:d}"
+
+    if position_str not in reference_variants:
+        sample_variant.actions.append("exclude")
+        logger.debug(
+            f"Excluding variant {sample_variant.id} "
+            "because it could not be found in the reference"
+        )
+        continue
+
+    match_result = None
+    reference_variant = None
+    for reference_variant in reference_variants[position_str]:
+        match_result = sample_variant.match_alleles_and_frequency(
+            reference_variant
+        )
+        if match_result.variant is not None:
+            break
+
+    matched_variant = match_result.variant
+
+    if matched_variant is None or len(match_result.messages) > 0:
+        if matched_variant is None:
+            matched_variant = sample_variant
+        sample_variant.actions.append("exclude")
+        logger.info(
+            f"Excluding variant \n{matched_variant} "
+            "because it could not be matched to the reference variants \n" +
+            "\n".join(map(str, reference_variants[position_str])) +
+            f" with messages {match_result.messages}"
+        )
+        continue
+
+    
