@@ -144,7 +144,9 @@ enigma-mds --bfile ../raw/my_sample
 <p>
 Next, go to <code>/data/qc</code>, and run <code>enigma-qc</code> for your 
 <code>.bed</code> file sets. This will drop any strand ambiguous SNPs and
-screen for low MAF, missingness and HWE.
+screen for low MAF, missingness and HWE, then remove duplicate SNPs if
+necessary, and finally convert the data to <code>VCF</code> format for
+imputation.
 </p>
 
 ```bash
@@ -167,7 +169,7 @@ imputationserver --study-name my_sample --population eur
 <p>
 This process will likely take a few hours, and once it finishes for all your
 <code>.bed</code> file sets, you can exit the container using the
-<code>exit</code> command. 
+<code>exit</code> command.
 </p>
 <p>
 All outputs can be found in the working directory created earlier. The quality
