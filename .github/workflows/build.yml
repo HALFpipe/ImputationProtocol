@@ -55,9 +55,19 @@ jobs:
           if [[ "$VERSION" == "main" ]]; then
             VERSION=latest
           fi
-          REPO=$(echo "${GITHUB_REPOSITORY}" | sed -r 's/([A-Z])([a-z0-9])/-\L\1\2/g' | tr '[:upper:]' '[:lower:]')
-          echo "::set-output name=repo::${REPO}"
-          echo "::set-output name=tag::${REPO}:${VERSION}"
+          OWNER=$( \
+            echo "${GITHUB_REPOSITORY}" | \
+            cut -d'/' -f1 | \
+            tr '[:upper:]' '[:lower:]' \
+          )
+          REPO=$( \
+            echo "${GITHUB_REPOSITORY}" | \
+            cut -d'/' -f2 | \
+            sed -r 's/([A-Z])([a-z0-9])/-\L\1\2/g' | \
+            tr '[:upper:]' '[:lower:]' \
+          )
+          echo "::set-output name=repo::${OWNER}/${REPO}"
+          echo "::set-output name=tag::${OWNER}/${REPO}:${VERSION}"
 
       - name: Build and push
         id: docker_build
