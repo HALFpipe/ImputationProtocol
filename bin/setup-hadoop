@@ -41,6 +41,8 @@ run_cmd() {
     return $EXIT_CODE
 }
 
+# code starts here
+
 source /usr/lib/bigtop-utils/bigtop-detect-javahome
 
 export HADOOP_HOME=/usr/lib/hadoop

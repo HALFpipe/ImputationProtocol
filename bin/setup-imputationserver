@@ -24,6 +24,8 @@ run_cmd() {
     return $EXIT_CODE
 }
 
+# code starts here
+
 run_cmd mkdir -p -v /data/cloudgene
 run_cmd cp -rnv /opt/cloudgene/* /data/cloudgene/
 

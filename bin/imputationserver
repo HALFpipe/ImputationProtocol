@@ -57,6 +57,8 @@ run_cmd() {
     return $EXIT_CODE
 }
 
+# code starts here
+
 export PATH=/data/cloudgene:${PATH}
 export HADOOP_CONF_DIR=/data/config
 

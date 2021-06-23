@@ -57,6 +57,8 @@ run_cmd() {
     return $EXIT_CODE
 }
 
+# code starts here
+
 VCF_DIRECTORY=/data/input/${STUDY_NAME}
 run_cmd mkdir -p -v ${VCF_DIRECTORY}
 
