@@ -55,7 +55,8 @@ This will use approximately one gigabyte of storage.
 You will now need to create a working directory that can be used for 
 intermediate files and outputs. This directory should be empty and should have
 sufficient space available. We will store the path of the working directory in
-the variable <code>working_directory</code>, and then create the new directory and some subfolders.
+the variable <code>working_directory</code>, and then create the new directory
+and some subfolders.
 </p>
 
 ```bash
@@ -67,7 +68,7 @@ mkdir -p -v ${working_directory}/{raw,mds,qc}
 
 <li>
 <p>
-Copy your raw data to the working directory in the <code>raw</code> subfolder. If you
+Copy your raw data to the <code>raw</code> subfolder of the working directory. If you
 have multiple <code>.bed</code> file sets that you want to process, copy them all.
 </p>
 
@@ -109,7 +110,7 @@ following commands.
 Inside the container, we will first set up our local instance of the
 <a href="https://imputationserver.readthedocs.io/en/latest/">Michigan Imputation Server</a>.
 The following commands will start a <a href="https://hadoop.apache.org/">Hadoop</a>
-cluster on your computer, verify that it works, and then download the genome
+instance on your computer, verify that it works, and then download the genome
 reference neede for imputation (around 15 GB of data, so it may take a while).
 </p>
 
@@ -123,13 +124,13 @@ setup-imputationserver
 <li>
 <p>
 Next, go to <code>/data/mds</code>, and run <code>enigma-mds</code> for your <code>.bed</code>
-file set. The script should now have created the files <code>mdsplot.pdf</code> and 
-<code>HM3_b37mds2R.mds.csv</code>, which are summary statistics that you will need to
-share with your working group.
+file set. The script should now have created the files <code>mdsplot.pdf</code>
+and  <code>HM3_b37mds2R.mds.csv</code>, which are summary statistics that you
+will need to share with your working group.
 </p>
 <p>
-If you have multiple <code>.bed</code> file sets, you should run the script in a separate folder for
-each of them.
+If you have multiple <code>.bed</code> file sets, you should run the script in a
+separate folder for each one.
 </p>
 
 ```bash
@@ -141,8 +142,9 @@ enigma-mds --bfile ../raw/my_sample
 
 <li>
 <p>
-Next, go to <code>/data/qc</code>, and run <code>enigma-qc</code> for your <code>.bed</code> file sets. This
-will drop any strand ambiguous SNPs and screen for low MAF, missingness and HWE.
+Next, go to <code>/data/qc</code>, and run <code>enigma-qc</code> for your 
+<code>.bed</code> file sets. This will drop any strand ambiguous SNPs and
+screen for low MAF, missingness and HWE.
 </p>
 
 ```bash
@@ -163,10 +165,17 @@ imputationserver --study-name my_sample --population eur
 ```
 
 <p>
-This process will likely take a few hours. The quality control report can be
-found at <code>output/my_sample/qcreport/qcreport.html</code>, and the imputation results
-in <code>output/my_sample/local</code>. The <code>.zip</code> files are encrypted with the password
-<code>password</code>.
+This process will likely take a few hours, and once it finishes for all your
+<code>.bed</code> file sets, you can exit the container using the
+<code>exit</code> command. 
+</p>
+<p>
+All outputs can be found in the working directory created earlier. The quality
+control report can be found at
+<code>${working_directory}/output/my_sample/qcreport/qcreport.html</code>, and
+the imputation results at
+<code>${working_directory}/output/my_sample/local</code>. The <code>.zip</code>
+files are encrypted with the password <code>password</code>.
 </p>
 </li>
 
@@ -176,7 +185,10 @@ in <code>output/my_sample/local</code>. The <code>.zip</code> files are encrypte
 
 ### Strand flips
 
-If the `imputationserver` command fails with the error "", then you will need to
+> Error: More than 100 obvious strand flips have been detected. Please check
+> strand. Imputation cannot be started!
+
+If the `imputationserver` command fails with this error, then you will need to
 resolve strand flips in your data. To automatically do that, the container comes
 with the `checkflip` command, which is based on the
 [RICOPILI](https://sites.google.com/a/broadinstitute.org/ricopili/) command of
@@ -188,3 +200,10 @@ checkflip --bfile ../raw/my_sample --population eur
 
 The command will create a `.bed` file set at `../raw/my_sample.checkflip` which
 will have all strand flips resolved.
+
+### Velocity
+
+> Job execution failed: Velocity could not be initialized!
+
+You likely have bad permissions in your working directory. You can either try
+to fix them, or start over with a fresh working directory.
