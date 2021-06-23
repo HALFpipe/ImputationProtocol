@@ -6,10 +6,10 @@
 With the advent of stricter data privacy laws in many jurisdictions, it has
 become impossible for some researchers to use the
 [Michigan Imputation Server](https://imputationserver.readthedocs.io/en/latest/)
-to phase and impute genotype data. This project brings the open source code
-behind the server, and the rest of the
+to phase and impute genotype data. This project allows you to use the open
+source code behind the server, and the rest of the
 [ENIGMA Imputation Protocol](https://enigma.ini.usc.edu/wp-content/uploads/2020/02/ENIGMA-1KGP_p3v5-Cookbook_20170713.pdf),
-to your local workstation or high-performance compute cluster as a container.
+on your local workstation or high-performance compute cluster.
 
 ## System requirements
 
@@ -205,5 +205,5 @@ will have all strand flips resolved.
 
 > Job execution failed: Velocity could not be initialized!
 
-You likely have bad permissions in your working directory. You can either try
-to fix them, or start over with a fresh working directory.
+You likely have bad permissions in your working directory. You can either try to
+fix them, or start over with a fresh working directory.
