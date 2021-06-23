@@ -419,7 +419,6 @@ if __name__ == "__main__":
                 reference_variants |= legend_file_variants
 
     # match sample and reference
-
     counters = dict(not_in_reference=0)
 
     exclude = list()
@@ -487,7 +486,6 @@ if __name__ == "__main__":
                 )
 
     # write out
-
     prefix = f"{args.bfile}.checkflip"
 
     counters_file = f"{prefix}.counters.txt"
@@ -510,7 +508,6 @@ if __name__ == "__main__":
         ua_file_handle.write("\n".join(map("\t".join, update_alleles)) + "\n")
 
     # apply
-
     verbose_call(
         [
             "plink",

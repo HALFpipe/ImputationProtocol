@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-OPTS=`getopt -o s:b:v --long study-name:,bfile:,verbose -n 'enigma-qc' -- "$@"`
+OPTS=`getopt -o s:b: --long study-name:,bfile: -n 'enigma-qc' -- "$@"`
 eval set -- "$OPTS"
 
-VERBOSE=0
+VERBOSE=1
 
 while true ; do
     case "$1" in
@@ -17,7 +17,6 @@ while true ; do
                 "") shift 2 ;;
                 *) STUDY_NAME=$2 ; shift 2 ;;
             esac ;;
-        -v|--verbose) VERBOSE=1 ; shift ;;
         --) shift ; break ;;
         *) echo "Internal error!" ; exit 1 ;;
     esac
@@ -28,16 +27,8 @@ fail() {
     exit "${2-1}"  
 }
 
-if [ ! -d /data/input ]; then
-    fail "Imputation server input folder \"/data/input\" does not exist. You should create it and try again"
-fi
-
-if [ ! $(ls -A /data/input) ]; then
-    fail "Imputation server input folder \"/data/input\" is not empty. You should check and/or backup its contents, run \"rm /data/input/*\", and try again"
-fi
-
 if [[ ! -v STUDY_NAME ]]; then
-    fail "Missing required --study-name parameter"
+    fail "missing required --study-name parameter"
 fi
 
 if [[ ! -v BFILE ]]; then
@@ -66,19 +57,28 @@ run_cmd() {
     return $EXIT_CODE
 }
 
-run_cmd plink --bfile ${BFILE} --make-founders --out "lastQC" --maf 0.01 --hwe 0.000001 --make-bed --noweb
+VCF_DIRECTORY=/data/input/${STUDY_NAME}
+run_cmd mkdir -p -v ${VCF_DIRECTORY}
+
+run_cmd "awk '{ \
+if ((\$5==\"T\" && \$6==\"A\") || (\$5==\"A\" && \$6==\"T\") || (\$5==\"C\" && \$6==\"G\") || (\$5==\"G\" && \$6==\"C\")) \
+print \$2, \"ambig\"; \
+else print \$2; \
+}' ${BFILE}.bim | grep ambig | awk '{print \$1}' > ambig.list"
+
+run_cmd plink --bfile ${BFILE} --exclude "ambig.list" --make-founders --out "lastQC" --maf 0.01 --hwe 0.000001 --make-bed --noweb
 
 run_cmd "awk '{print \$2, \$1\":\"\$4}' lastQC.bim > updateSNPs.txt"
 
 run_cmd plink --bfile "lastQC" --update-name "updateSNPs.txt" --make-bed --out "lastQCb37" --noweb --list-duplicate-vars
+LASTQC="lastQCb37"
 
-export LASTQC="lastQCb37"
 if [[ $(wc -l <lastQCb37.dupvar) -ge 1 ]]; then
     run_cmd plink2 --bfile "lastQCb37" --rm-dup "exclude-mismatch" --out "lastQCb37_noduplicates" --make-bed
-    export LASTQC="lastQCb37_noduplicates"
+    LASTQC="lastQCb37_noduplicates"
 fi
 
 for CHR in {1..22}; do
     run_cmd plink2 --bfile "${LASTQC}" --chr "${CHR}" --recode "vcf" --out "${STUDY_NAME}_chr${CHR}"
-    run_cmd "vcf-sort ${STUDY_NAME}_chr${CHR}.vcf | bgzip -c > /data/input/${STUDY_NAME}_chr${CHR}.vcf.gz"
+    run_cmd "vcf-sort ${STUDY_NAME}_chr${CHR}.vcf | bgzip -c > ${VCF_DIRECTORY}/chr${CHR}.vcf.gz"
 done

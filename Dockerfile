@@ -9,12 +9,14 @@ RUN (apt-get update || exit 0) && \
     apt-get install -y "vcftools" && \
     apt-get clean && \
     apt-get purge && \
-    wget -qO /tmp/plink_linux.zip https://s3.amazonaws.com/plink1-assets/plink_linux_x86_64_20210606.zip && \
+    wget -qO /tmp/plink_linux.zip "https://s3.amazonaws.com/plink1-assets/plink_linux_x86_64_20210606.zip" && \
     unzip /tmp/plink_linux.zip plink -d /usr/local/bin && \
-    wget -qO /tmp/plink2_linux.zip https://s3.amazonaws.com/plink2-assets/plink2_linux_x86_64_20210608.zip && \
+    wget -qO /tmp/plink2_linux.zip "https://s3.amazonaws.com/plink2-assets/plink2_linux_x86_64_20210608.zip" && \
     unzip /tmp/plink2_linux.zip plink2 -d /usr/local/bin && \
-    wget -qO /tmp/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    wget -qO /tmp/miniconda.sh "https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh" && \
     bash /tmp/miniconda.sh -b -p /usr/local/miniconda && \
+    wget -qO /tmp/calibrate.tar.gz "https://cran.r-project.org/src/contrib/Archive/calibrate/calibrate_1.7.2.tar.gz" && \
+    R CMD INSTALL /tmp/calibrate.tar.gz && \
     rm -rf /var/lib/apt/lists/* /tmp/*; sync
 
 ENV PATH="/usr/local/miniconda/bin:$PATH" \

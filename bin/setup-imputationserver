@@ -1,16 +1,42 @@
 #!/bin/bash
 
+VERBOSE=1
+
+run_cmd() {
+    cmd="$*"
+
+    printf '%s\n' --------------------
+
+    if [ "$VERBOSE" = "1" ]; then
+	printf "$cmd\n"
+    fi
+
+    ( "$@" )
+
+    EXIT_CODE=$?
+
+    if [[ $EXIT_CODE -gt 0 ]]; then
+	echo "ERROR: command exited with nonzero status $EXIT_CODE"
+    fi
+
+    printf '%s\n' --------------------
+
+    return $EXIT_CODE
+}
+
+run_cmd mkdir -p -v /data/cloudgene
+run_cmd cp -rnv /opt/cloudgene/* /data/cloudgene/
+
+export PATH=/data/cloudgene:${PATH}
 export HADOOP_CONF_DIR=/data/config
 
-mkdir -p /data/cloudgene
-cp -rnv /opt/cloudgene/* /data/cloudgene/
-export PATH=/data/cloudgene:${PATH}
+run_cmd cloudgene verify-cluster
 
-cloudgene verify-cluster
+run_cmd cloudgene clone /data/cloudgene/apps.yaml
 
-cloudgene clone /data/cloudgene/apps.yaml
+run_cmd chmod -R +w /data/cloudgene/apps/imputationserver  # needs to be writable because it will be used as a temp dir
+run_cmd chmod -R -w /data/cloudgene/apps/1000g-phase-3-v5  # otherwise cloudgene will delete the files on import to hadoop
 
-chmod -R +w /data/cloudgene/apps/imputationserver  # needs to be writable because it will be used as a temp dir
-chmod -R -w /data/cloudgene/apps/1000g-phase-3-v5  # otherwise cloudgene will delete the files on import to hadoop
+run_cmd mkdir -p -v /data/input /data/output
 
-mkdir -p -v /data/input /data/output
+run_cmd sed -i "s/value: auto/value: password/g" /data/cloudgene/apps/imputationserver/*/*.yaml

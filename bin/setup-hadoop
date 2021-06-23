@@ -3,6 +3,8 @@
 OPTS=`getopt -o n: --long n-cores: -n 'setup-hadoop' -- "$@"`
 eval set -- "$OPTS"
 
+VERBOSE=1
+
 N_CORES=4
 
 while true ; do
@@ -17,6 +19,28 @@ while true ; do
     esac
 done
 
+run_cmd() {
+    cmd="$*"
+
+    printf '%s\n' --------------------
+
+    if [ "$VERBOSE" = "1" ]; then
+	printf "$cmd\n"
+    fi
+
+    eval "$@"
+
+    EXIT_CODE=$?
+
+    if [[ $EXIT_CODE -gt 0 ]]; then
+	echo "ERROR: command exited with nonzero status $EXIT_CODE"
+    fi
+
+    printf '%s\n' --------------------
+
+    return $EXIT_CODE
+}
+
 source /usr/lib/bigtop-utils/bigtop-detect-javahome
 
 export HADOOP_HOME=/usr/lib/hadoop
@@ -26,21 +50,19 @@ export HADOOP_LOG_DIR=/data/logs
 export HADOOP_PID_DIR=/data/pids
 export HADOOP_CONF_DIR=/data/config
 
-mkdir -p -v ${HADOOP_LOG_DIR} ${HADOOP_PID_DIR} ${HADOOP_CONF_DIR}
+run_cmd mkdir -p -v ${HADOOP_LOG_DIR} ${HADOOP_PID_DIR} ${HADOOP_CONF_DIR}
 
-cp -rnv ${HADOOP_HOME}/etc/hadoop/* ${HADOOP_CONF_DIR}
+run_cmd cp -rnv ${HADOOP_HOME}/etc/hadoop/* ${HADOOP_CONF_DIR}
 
-sed -e s/AMOUNT/${N_CORES}/ -e s/HOSTNAME/localhost/ /usr/bin/mapred-site-template.xml > ${HADOOP_CONF_DIR}/mapred-site.xml
+run_cmd "sed -e s/AMOUNT/${N_CORES}/ -e s/HOSTNAME/localhost/ /usr/bin/mapred-site-template.xml > ${HADOOP_CONF_DIR}/mapred-site.xml"
 
-sed s/HOSTNAME/localhost/ /usr/bin/core-site-template.xml > ${HADOOP_CONF_DIR}/core-site.xml
+run_cmd "sed s/HOSTNAME/localhost/ /usr/bin/core-site-template.xml > ${HADOOP_CONF_DIR}/core-site.xml"
 
-sed -i "s+/var/lib/hadoop-hdfs/cache+/data/hadoop/cache+g" ${HADOOP_CONF_DIR}/*
+run_cmd "sed -i s+/var/lib/hadoop-hdfs/cache+/data/hadoop/cache+g ${HADOOP_CONF_DIR}/*"
 
-sed -e s+HADOOP_LOG_DIR+${HADOOP_LOG_DIR}+ log4j.properties > ${HADOOP_CONF_DIR}/log4j.properties
+run_cmd "echo localhost > ${HADOOP_CONF_DIR}/masters"
 
-echo localhost > $HADOOP_CONF_DIR/masters
-
-cat <<EOF >> ${HADOOP_CONF_DIR}/hadoop-env.sh
+run_cmd "cat <<EOF >> ${HADOOP_CONF_DIR}/hadoop-env.sh
 
 # custom
 
@@ -52,26 +74,30 @@ export HADOOP_SECURE_DN_PID_DIR=${HADOOP_PID_DIR}
 export HADOOP_HOME_WARN_SUPPRESS=TRUE
 
 export JAVA_HOME=${JAVA_HOME}
-EOF
+EOF"
 
-hdfs namenode -format -nonInteractive -force
+if [ -d /data/hadoop ]; then
+    run_cmd rm -rf /data/hadoop
+fi
 
-/usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start namenode
-/usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start secondarynamenode
-/usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start datanode
+run_cmd hdfs namenode -format -nonInteractive -force
 
-env HADOOP_HOME=/usr/lib/hadoop-0.20-mapreduce /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start jobtracker
-env HADOOP_HOME=/usr/lib/hadoop-0.20-mapreduce /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start tasktracker
+run_cmd /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start namenode
+run_cmd /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start secondarynamenode
+run_cmd /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start datanode
 
-hadoop fs -mkdir -p /tmp
-hadoop fs -chmod -R 1777 /tmp
-hadoop fs -mkdir -p /var
-hadoop fs -mkdir -p /var/log
-hadoop fs -chmod -R 1775 /var/log
+run_cmd env HADOOP_HOME=/usr/lib/hadoop-0.20-mapreduce /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start jobtracker
+run_cmd env HADOOP_HOME=/usr/lib/hadoop-0.20-mapreduce /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start tasktracker
 
-hadoop fs -mkdir -p /data/hadoop/cache/${USER}/mapred/staging
-hadoop fs -chmod 1777 /data/hadoop/cache/${USER}/mapred/staging
-hadoop fs -chown -R ${USER} /data/hadoop/cache/${USER}
+run_cmd hadoop fs -mkdir -p /tmp
+run_cmd hadoop fs -chmod -R 1777 /tmp
+run_cmd hadoop fs -mkdir -p /var
+run_cmd hadoop fs -mkdir -p /var/log
+run_cmd hadoop fs -chmod -R 1775 /var/log
 
-hadoop fs -mkdir -p /user/${USER}
-hadoop fs -chown ${USER} /user/${USER}
+run_cmd hadoop fs -mkdir -p /data/hadoop/cache/${USER}/mapred/staging
+run_cmd hadoop fs -chmod 1777 /data/hadoop/cache/${USER}/mapred/staging
+run_cmd hadoop fs -chown -R ${USER} /data/hadoop/cache/${USER}
+
+run_cmd hadoop fs -mkdir -p /user/${USER}
+run_cmd hadoop fs -chown ${USER} /user/${USER}

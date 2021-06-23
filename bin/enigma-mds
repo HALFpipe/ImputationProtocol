@@ -2,10 +2,10 @@
 
 #!/usr/bin/env bash
 
-OPTS=`getopt -o b:v --long bfile:,verbose -n 'imputationserver' -- "$@"`
+OPTS=`getopt -o b:s: --long study-name:,bfile: -n 'enigma-mds' -- "$@"`
 eval set -- "$OPTS"
 
-VERBOSE=0
+VERBOSE=1
 
 while true ; do
     case "$1" in
@@ -67,7 +67,7 @@ print \$2, \"ambig\"; \
 else print \$2; \
 }' ${BFILE_FILTERED}.bim | grep -v ambig > local.snplist.txt"
 
-run_cmd plink --bfile "${REFERENCE}" --extract "local.snplist.txt" --make-bed --noweb --out external
+run_cmd plink --bfile "${REFERENCE}" --extract "local.snplist.txt" --make-bed --noweb --out "external"
 
 run_cmd plink --bfile "local" --bmerge "external.bed" "external.bim" "external.fam" --make-bed --noweb --out "HM3_b37merge"
 
@@ -83,33 +83,31 @@ run_cmd plink --bfile "HM3_b37merge" --cluster --mind "0.05" --mds-plot "4" --ex
 
 run_cmd "awk 'BEGIN{OFS=\",\"}; {print \$1, \$2, \$3, \$4, \$5, \$6, \$7}' HM3_b37mds.mds >> HM3_b37mds2R.mds.csv"
 
-run_cmd 'Rscript - <<EOF
-library(calibrate)
+run_cmd "Rscript - <<EOF
+mds.cluster = read.csv(\"HM3_b37mds2R.mds.csv\", header=T)
 
-mds.cluster = read.csv("HM3_b37mds2R.mds.csv", header=T)
+colors=rep(\"red\", length(mds.cluster\$C1))
+colors[which(mds.cluster\$FID == \"CEU\")] <- \"lightblue\"
+colors[which(mds.cluster\$FID == \"CHB\")] <- \"brown\"
+colors[which(mds.cluster\$FID == \"YRI\")] <- \"yellow\"
+colors[which(mds.cluster\$FID == \"TSI\")] <- \"green\"
+colors[which(mds.cluster\$FID == \"JPT\")] <- \"purple\"
+colors[which(mds.cluster\$FID == \"CHD\")] <- \"orange\"
+colors[which(mds.cluster\$FID == \"MEX\")] <- \"grey50\"
+colors[which(mds.cluster\$FID == \"GIH\")] <- \"black\"
+colors[which(mds.cluster\$FID == \"ASW\")] <- \"darkolivegreen\"
+colors[which(mds.cluster\$FID == \"LWK\")] <- \"magenta\"
+colors[which(mds.cluster\$FID == \"MKK\")] <- \"darkblue\"
 
-colors=rep("red", length(mds.cluster\$C1))
-colors[which(mds.cluster\$FID == "CEU")] <- "lightblue"
-colors[which(mds.cluster\$FID == "CHB")] <- "brown"
-colors[which(mds.cluster\$FID == "YRI")] <- "yellow"
-colors[which(mds.cluster\$FID == "TSI")] <- "green"
-colors[which(mds.cluster\$FID == "JPT")] <- "purple"
-colors[which(mds.cluster\$FID == "CHD")] <- "orange"
-colors[which(mds.cluster\$FID == "MEX")] <- "grey50"
-colors[which(mds.cluster\$FID == "GIH")] <- "black"
-colors[which(mds.cluster\$FID == "ASW")] <- "darkolivegreen"
-colors[which(mds.cluster\$FID == "LWK")] <- "magenta"
-colors[which(mds.cluster\$FID == "MKK")] <- "darkblue"
-
-pdf(file="mdsplot.pdf", width=7, height=7)
+pdf(file=\"mdsplot.pdf\", width=7, height=7)
 
 plot(rev(mds.cluster\$C2), rev(mds.cluster\$C1),
 col=rev(colors),
-ylab="Dimension 1", xlab="Dimension 2", pch=20)
+ylab=\"Dimension 1\", xlab=\"Dimension 2\", pch=20)
 
-legend("topright",
-c("My Sample", "CEU", "CHB", "YRI", "TSI", "JPT", "CHD", "MEX", "GIH", "ASW","LWK", "MKK"),
-fill=c("red", "lightblue", "brown", "yellow", "green", "purple", "orange", "grey50", "black", "darkolivegreen", "magenta", "darkblue"))
+legend(\"topright\",
+c(\"My Sample\", \"CEU\", \"CHB\", \"YRI\", \"TSI\", \"JPT\", \"CHD\", \"MEX\", \"GIH\", \"ASW\",\"LWK\", \"MKK\"),
+fill=c(\"red\", \"lightblue\", \"brown\", \"yellow\", \"green\", \"purple\", \"orange\", \"grey50\", \"black\", \"darkolivegreen\", \"magenta\", \"darkblue\"))
 
 dev.off()
-EOF'
+EOF"
