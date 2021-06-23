@@ -40,7 +40,7 @@ This will use approximately one gigabyte of storage.
 <tbody>
   <tr>
     <td>Singularity</td>
-    <td>TBD</td>
+    <td>Download the <code>.sif</code> file from <a href="https://tinyurl.com/53pf6kzv">https://tinyurl.com/53pf6kzv</a></td>
   </tr>
   <tr>
     <td>Docker</td>
