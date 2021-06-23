@@ -111,7 +111,7 @@ Inside the container, we will first set up our local instance of the
 <a href="https://imputationserver.readthedocs.io/en/latest/">Michigan Imputation Server</a>.
 The following commands will start a <a href="https://hadoop.apache.org/">Hadoop</a>
 instance on your computer, verify that it works, and then download the genome
-reference neede for imputation (around 15 GB of data, so it may take a while).
+reference that will be used for imputation (around 15 GB of data, so it may take a while).
 </p>
 
 ```bash
