@@ -42,7 +42,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
-          password: ${{ secrets.CR_PAT }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up build tag
         id: build_tag
@@ -55,7 +55,7 @@ jobs:
           if [[ "$VERSION" == "main" ]]; then
             VERSION=latest
           fi
-          REPO=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          REPO=$(echo "${GITHUB_REPOSITORY}" | sed -r 's/([A-Z])([a-z0-9])/-\L\1\2/g' | tr '[:upper:]' '[:lower:]')
           echo "::set-output name=repo::${REPO}"
           echo "::set-output name=tag::${REPO}:${VERSION}"
 
