@@ -130,7 +130,7 @@ will need to share with your working group.
 </p>
 <p>
 If you have multiple <code>.bed</code> file sets, you should run the script in a
-separate folder for each one.
+separate folder for each one. The script always outputs to the current folder.
 </p>
 
 ```bash
@@ -145,8 +145,14 @@ enigma-mds --bfile ../raw/my_sample
 Next, go to <code>/data/qc</code>, and run <code>enigma-qc</code> for your 
 <code>.bed</code> file sets. This will drop any strand ambiguous SNPs and
 screen for low MAF, missingness and HWE, then remove duplicate SNPs if
-necessary, and finally convert the data to <code>VCF</code> format for
-imputation.
+necessary, and finally convert the data to sorted <code>.vcf.gz</code>
+format for imputation.
+</p>
+<p>
+The script places intermediate files in the current folder, and the final
+<code>.vcf.gz</code> files in <code>/data/input/my_sample</code> where
+they can be accessed by the <code>imputationserver</code> script in the
+next step.
 </p>
 
 ```bash
