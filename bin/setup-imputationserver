@@ -36,8 +36,8 @@ run_cmd cloudgene verify-cluster
 
 run_cmd cloudgene clone /data/cloudgene/apps.yaml
 
-run_cmd chmod -R +w /data/cloudgene/apps/imputationserver  # needs to be writable because it will be used as a temp dir
-run_cmd chmod -R -w /data/cloudgene/apps/1000g-phase-3-v5  # otherwise cloudgene will delete the files on import to hadoop
+run_cmd find /data/cloudgene/apps -type d -exec chmod ugo+w {} +  # need to be writable because it will be used as a temp dir
+run_cmd find /data/cloudgene/apps -type f -exec chmod ugo-w {} +  # should not be writable, or cloudgene will delete the files after import to hadoop hdfs
 
 run_cmd mkdir -p -v /data/input /data/output
 

@@ -86,22 +86,22 @@ run_cmd "awk 'BEGIN{OFS=\",\"}; {print \$1, \$2, \$3, \$4, \$5, \$6, \$7}' HM3_b
 run_cmd "Rscript - <<EOF
 mds.cluster = read.csv(\"HM3_b37mds2R.mds.csv\", header=T)
 
-colors=rep(\"red\", length(mds.cluster\$C1))
-colors[which(mds.cluster\$FID == \"CEU\")] <- \"lightblue\"
-colors[which(mds.cluster\$FID == \"CHB\")] <- \"brown\"
-colors[which(mds.cluster\$FID == \"YRI\")] <- \"yellow\"
-colors[which(mds.cluster\$FID == \"TSI\")] <- \"green\"
-colors[which(mds.cluster\$FID == \"JPT\")] <- \"purple\"
-colors[which(mds.cluster\$FID == \"CHD\")] <- \"orange\"
-colors[which(mds.cluster\$FID == \"MEX\")] <- \"grey50\"
-colors[which(mds.cluster\$FID == \"GIH\")] <- \"black\"
-colors[which(mds.cluster\$FID == \"ASW\")] <- \"darkolivegreen\"
-colors[which(mds.cluster\$FID == \"LWK\")] <- \"magenta\"
-colors[which(mds.cluster\$FID == \"MKK\")] <- \"darkblue\"
+colors=rep(\"red\", length(mds.cluster\\\$C1))
+colors[which(mds.cluster\\\$FID == \"CEU\")] <- \"lightblue\"
+colors[which(mds.cluster\\\$FID == \"CHB\")] <- \"brown\"
+colors[which(mds.cluster\\\$FID == \"YRI\")] <- \"yellow\"
+colors[which(mds.cluster\\\$FID == \"TSI\")] <- \"green\"
+colors[which(mds.cluster\\\$FID == \"JPT\")] <- \"purple\"
+colors[which(mds.cluster\\\$FID == \"CHD\")] <- \"orange\"
+colors[which(mds.cluster\\\$FID == \"MEX\")] <- \"grey50\"
+colors[which(mds.cluster\\\$FID == \"GIH\")] <- \"black\"
+colors[which(mds.cluster\\\$FID == \"ASW\")] <- \"darkolivegreen\"
+colors[which(mds.cluster\\\$FID == \"LWK\")] <- \"magenta\"
+colors[which(mds.cluster\\\$FID == \"MKK\")] <- \"darkblue\"
 
 pdf(file=\"mdsplot.pdf\", width=7, height=7)
 
-plot(rev(mds.cluster\$C2), rev(mds.cluster\$C1),
+plot(rev(mds.cluster\\\$C2), rev(mds.cluster\\\$C1),
 col=rev(colors),
 ylab=\"Dimension 1\", xlab=\"Dimension 2\", pch=20)
 
