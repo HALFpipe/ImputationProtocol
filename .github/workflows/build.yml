@@ -103,10 +103,11 @@ jobs:
       options: --privileged
 
     steps:
-      - name: Singularity build
+      - name: Convert to Singularity
+        id: docker2singularity
+        shell: bash  
         env:
           DOCKER_IMAGE_NAME: ${{ needs.docker_build.outputs.tag }}
-        shell: bash
         run: |
           SINGULARITY_IMAGE_NAME=$(echo -n ${DOCKER_IMAGE_NAME} | tr -c '[:alnum:]' '-')
           mkdir -p -v /output
@@ -123,5 +124,5 @@ jobs:
           secret_key: ${{ secrets.DIGITALOCEAN_SECRET_KEY }}
           space_name: hippocampusgirl
           space_region: ${{ secrets.DIGITALOCEAN_REGION }}
-          source: ${{ steps.singularity_build.outputs.image }}
+          source: ${{ steps.docker2singularity.outputs.image }}
           out_dir: singularity
