@@ -100,7 +100,7 @@ jobs:
         shell: bash
         env:
           DOCKER_IMAGE_NAME: ${{ steps.build_tag.outputs.tag }}
-          DOCKER_HOST: "http://127.0.0.1:${{ job.services.dind.ports[2375] }}"
+          DOCKER_HOST: "tcp://127.0.0.1:${{ job.services.dind.ports[2375] }}"
         run: |
           SINGULARITY_IMAGE_NAME=$(echo -n ${DOCKER_IMAGE_NAME} | tr -c '[:alnum:]' '-')
           echo DOCKER_HOST=$DOCKER_HOST
