@@ -131,7 +131,7 @@ jobs:
             --access_key="${DIGITALOCEAN_ACCESS_KEY}" \
             --secret_key="${DIGITALOCEAN_SECRET_KEY}" \
             --host="${DIGITALOCEAN_REGION}.digitaloceanspaces.com" \
-            --host-bucket="%(bucket)s.nyc3.digitaloceanspaces.com" \
+            --host-bucket="%(bucket)s.${DIGITALOCEAN_REGION}.digitaloceanspaces.com" \
             --dump-config \
             > ${HOME}/.s3cfg
           SINGULARITY_IMAGE_FILE=$(find "/output" -type f | head -n1)
