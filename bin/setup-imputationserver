@@ -26,7 +26,7 @@ run_cmd() {
 
 # code starts here
 
-run_cmd mkdir -p -v /data/cloudgene
+run_cmd mkdir -p -v /data/cloudgene /data/downloads
 run_cmd cp -rnv /opt/cloudgene/* /data/cloudgene/
 
 export PATH=/data/cloudgene:${PATH}
@@ -34,7 +34,11 @@ export HADOOP_CONF_DIR=/data/hadoop/config
 
 run_cmd cloudgene verify-cluster
 
-run_cmd cloudgene clone /data/cloudgene/apps.yaml
+run_cmd wget --continue -O /data/downloads/imputationserver.zip "https://github.com/genepi/imputationserver/releases/download/v1.5.7/imputationserver.zip"
+run_cmd wget --continue -O /data/downloads/1000genomes-phase3.zip "https://imputationserver.sph.umich.edu/static/downloads/releases/1000genomes-phase3-2.0.0.zip"
+
+run_cmd cloudgene install /data/downloads/imputationserver.zip
+run_cmd cloudgene install /data/downloads/1000genomes-phase3.zip
 
 run_cmd sed -i "s/value: auto/value: password/g" /data/cloudgene/apps/imputationserver/*/*.yaml
 
