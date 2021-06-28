@@ -66,7 +66,7 @@ jobs:
           echo "::set-output name=repo::${OWNER}/${REPO}"
           echo "::set-output name=tag::${OWNER}/${REPO}:${VERSION}"
 
-      - name: Build and push
+      - name: Docker build and push
         id: docker_build
         uses: docker/build-push-action@v2
         with:
@@ -84,3 +84,29 @@ jobs:
             org.opencontainers.image.url=${{ github.event.repository.html_url }}
             org.opencontainers.image.source=${{ github.event.repository.html_url }}
             org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Singularity build
+        id: singularity_build
+        shell: bash
+        env:
+          DOCKER_IMAGE_NAME: ${{ steps.build_tag.outputs.tag }}
+        run: |
+          SINGULARITY_IMAGE_NAME=$(echo -n ${DOCKER_IMAGE_NAME} | tr -c '[:alnum:]' '-')
+          docker run --rm \
+            --privileged \
+            --userns host \
+            --volume $(pwd):/output \
+            quay.io/singularity/docker2singularity:latest \
+            --name ${SINGULARITY_IMAGE_NAME} \
+            ${DOCKER_IMAGE_NAME}
+          SINGULARITY_IMAGE_FILE=$(find "$(pwd)/${SINGULARITY_IMAGE_NAME}.*" | head -n1)
+          echo "::set-output name=image::${SINGULARITY_IMAGE_FILE}"
+
+      - uses: BetaHuhn/do-spaces-action@v2
+        with:
+          access_key: ${{ secrets.DIGITALOCEAN_ACCESS_KEY }}
+          secret_key: ${{ secrets.DIGITALOCEAN_SECRET_KEY }}
+          space_name: ${{ secrets.DIGITALOCEAN_SPACE_NAME }}
+          space_region: ${{ secrets.DIGITALOCEAN_REGION }}
+          source: ${{ steps.singularity_build.outputs.image }}
+          out_dir: singularity
