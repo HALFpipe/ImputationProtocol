@@ -93,8 +93,14 @@ jobs:
     needs:
       - docker_build
 
+    strategy:
+      matrix:
+        singularity_version:
+          - "latest"
+          - "v2.6"
+
     container:
-      image: quay.io/singularity/docker2singularity:latest
+      image: quay.io/singularity/docker2singularity:${{ matrix.singularity_version }}
       options: --privileged
 
     steps:
@@ -108,7 +114,7 @@ jobs:
           docker-entrypoint.sh /docker2singularity.sh \
             --name ${SINGULARITY_IMAGE_NAME} \
             ${DOCKER_IMAGE_NAME}
-          SINGULARITY_IMAGE_FILE=$(find "$(pwd)/${SINGULARITY_IMAGE_NAME}.*" | head -n1)
+          SINGULARITY_IMAGE_FILE=$(find "/output/${SINGULARITY_IMAGE_NAME}.*" | head -n1)
           echo "::set-output name=image::${SINGULARITY_IMAGE_FILE}"
 
       - uses: BetaHuhn/do-spaces-action@v2
