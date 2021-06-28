@@ -48,11 +48,14 @@ source /usr/lib/bigtop-utils/bigtop-detect-javahome
 export HADOOP_HOME=/usr/lib/hadoop
 export HADOOP_LIBEXEC_DIR=/usr/lib/hadoop/libexec
 
-export HADOOP_LOG_DIR=/data/logs
-export HADOOP_PID_DIR=/data/pids
-export HADOOP_CONF_DIR=/data/config
+export HADOOP_LOG_DIR=/data/hadoop/logs
+export HADOOP_PID_DIR=/data/hadoop/pids
+export HADOOP_CONF_DIR=/data/hadoop/config
 
-run_cmd mkdir -p -v ${HADOOP_LOG_DIR} ${HADOOP_PID_DIR} ${HADOOP_CONF_DIR}
+export HADOOP_DATA_DIR=/data/hadoop/hdfs
+export HADOOP_CACHE_DIR=${HADOOP_DATA_DIR}/cache
+
+run_cmd mkdir -p -v ${HADOOP_LOG_DIR} ${HADOOP_PID_DIR} ${HADOOP_CONF_DIR} ${HADOOP_CACHE_DIR}
 
 run_cmd cp -rnv ${HADOOP_HOME}/etc/hadoop/* ${HADOOP_CONF_DIR}
 
@@ -60,7 +63,7 @@ run_cmd "sed -e s/AMOUNT/${N_CORES}/ -e s/HOSTNAME/localhost/ /usr/bin/mapred-si
 
 run_cmd "sed s/HOSTNAME/localhost/ /usr/bin/core-site-template.xml > ${HADOOP_CONF_DIR}/core-site.xml"
 
-run_cmd "sed -i s+/var/lib/hadoop-hdfs/cache+/data/hadoop/cache+g ${HADOOP_CONF_DIR}/*"
+run_cmd "sed -i s+/var/lib/hadoop-hdfs/cache+${HADOOP_CACHE_DIR}+g ${HADOOP_CONF_DIR}/*"
 
 run_cmd "echo localhost > ${HADOOP_CONF_DIR}/masters"
 
@@ -78,8 +81,9 @@ export HADOOP_HOME_WARN_SUPPRESS=TRUE
 export JAVA_HOME=${JAVA_HOME}
 EOF"
 
-if [ -d /data/hadoop ]; then
-    run_cmd rm -rf /data/hadoop
+if [ -d ${HADOOP_DATA_DIR} ]; then
+    run_cmd rm -rf ${HADOOP_DATA_DIR}
+    run_cmd mkdir -p -v ${HADOOP_DATA_DIR} ${HADOOP_CACHE_DIR}
 fi
 
 run_cmd hdfs namenode -format -nonInteractive -force
@@ -88,8 +92,21 @@ run_cmd /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" star
 run_cmd /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start secondarynamenode
 run_cmd /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start datanode
 
-run_cmd env HADOOP_HOME=/usr/lib/hadoop-0.20-mapreduce /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start jobtracker
-run_cmd env HADOOP_HOME=/usr/lib/hadoop-0.20-mapreduce /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start tasktracker
+if [ -z "$USER" ]; then
+    USER=$(whoami)
+fi
+
+if [[ $(id -u) -eq 0 ]] ; then  # running as root
+    export HADOOP_JOBTRACKER_USER="mapred"
+    export HADOOP_TASKTRACKER_USER="mapred"
+
+    run_cmd chmod -R ugo+rw ${HADOOP_LOG_DIR} ${HADOOP_PID_DIR} ${HADOOP_CONF_DIR} ${HADOOP_DATA_DIR}  # need to allow non-root users to access
+else
+    export HADOOP_JOBTRACKER_USER=${USER}
+    export HADOOP_TASKTRACKER_USER=${USER}
+fi
+
+run_cmd hadoop fs -chmod -R 1777 /
 
 run_cmd hadoop fs -mkdir -p /tmp
 run_cmd hadoop fs -chmod -R 1777 /tmp
@@ -97,9 +114,12 @@ run_cmd hadoop fs -mkdir -p /var
 run_cmd hadoop fs -mkdir -p /var/log
 run_cmd hadoop fs -chmod -R 1775 /var/log
 
-run_cmd hadoop fs -mkdir -p /data/hadoop/cache/${USER}/mapred/staging
-run_cmd hadoop fs -chmod 1777 /data/hadoop/cache/${USER}/mapred/staging
-run_cmd hadoop fs -chown -R ${USER} /data/hadoop/cache/${USER}
+run_cmd hadoop fs -mkdir -p ${HADOOP_CACHE_DIR}/${HADOOP_JOBTRACKER_USER}/mapred/staging
+run_cmd hadoop fs -chmod 1777 ${HADOOP_CACHE_DIR}/${HADOOP_JOBTRACKER_USER}/mapred/staging
+run_cmd hadoop fs -chown -R ${HADOOP_JOBTRACKER_USER} ${HADOOP_CACHE_DIR}/${HADOOP_JOBTRACKER_USER}
 
 run_cmd hadoop fs -mkdir -p /user/${USER}
 run_cmd hadoop fs -chown ${USER} /user/${USER}
+
+run_cmd env HADOOP_HOME=/usr/lib/hadoop-0.20-mapreduce /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start jobtracker
+run_cmd env HADOOP_HOME=/usr/lib/hadoop-0.20-mapreduce /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start tasktracker

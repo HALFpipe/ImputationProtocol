@@ -30,15 +30,15 @@ run_cmd mkdir -p -v /data/cloudgene
 run_cmd cp -rnv /opt/cloudgene/* /data/cloudgene/
 
 export PATH=/data/cloudgene:${PATH}
-export HADOOP_CONF_DIR=/data/config
+export HADOOP_CONF_DIR=/data/hadoop/config
 
 run_cmd cloudgene verify-cluster
 
 run_cmd cloudgene clone /data/cloudgene/apps.yaml
 
+run_cmd sed -i "s/value: auto/value: password/g" /data/cloudgene/apps/imputationserver/*/*.yaml
+
 run_cmd find /data/cloudgene/apps -type d -exec chmod ugo+w {} +  # need to be writable because it will be used as a temp dir
 run_cmd find /data/cloudgene/apps -type f -exec chmod ugo-w {} +  # should not be writable, or cloudgene will delete the files after import to hadoop hdfs
 
 run_cmd mkdir -p -v /data/input /data/output
-
-run_cmd sed -i "s/value: auto/value: password/g" /data/cloudgene/apps/imputationserver/*/*.yaml

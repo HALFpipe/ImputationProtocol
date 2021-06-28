@@ -60,7 +60,7 @@ run_cmd() {
 # code starts here
 
 export PATH=/data/cloudgene:${PATH}
-export HADOOP_CONF_DIR=/data/config
+export HADOOP_CONF_DIR=/data/hadoop/config
 
 EXTRA_FLAGS=""
 if [ "$VERBOSE" = "1" ]; then
