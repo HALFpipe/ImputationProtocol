@@ -13,6 +13,16 @@ jobs:
   main:
     runs-on: ubuntu-latest
 
+    services:
+      dind:
+        image: docker:dind
+        ports: 
+          - 2375/tcp
+        env:
+          DOCKER_DRIVER: overlay
+          DOCKER_TLS_CERTDIR: ""
+        options: "--privileged"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -90,6 +100,7 @@ jobs:
         shell: bash
         env:
           DOCKER_IMAGE_NAME: ${{ steps.build_tag.outputs.tag }}
+          DOCKER_HOST: "http://127.0.0.1:${{ job.services.dind.ports[2375] }}"
         run: |
           SINGULARITY_IMAGE_NAME=$(echo -n ${DOCKER_IMAGE_NAME} | tr -c '[:alnum:]' '-')
           echo DOCKER_HOST=$DOCKER_HOST
