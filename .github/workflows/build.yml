@@ -92,9 +92,9 @@ jobs:
           DOCKER_IMAGE_NAME: ${{ steps.build_tag.outputs.tag }}
         run: |
           SINGULARITY_IMAGE_NAME=$(echo -n ${DOCKER_IMAGE_NAME} | tr -c '[:alnum:]' '-')
+          echo DOCKER_HOST=$DOCKER_HOST
           docker run --rm \
             --privileged \
-            --userns host \
             --volume $(pwd):/output \
             quay.io/singularity/docker2singularity:latest \
             --name ${SINGULARITY_IMAGE_NAME} \
