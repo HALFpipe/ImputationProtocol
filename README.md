@@ -101,7 +101,7 @@ following commands.
 <tbody>
   <tr>
     <td>Singularity</td>
-    <td><code>singularity shell --bind ${working_directory}:/data hippocampusgirl_enigma-imputation-protocol_latest.sif</code></td>
+    <td><code>singularity shell --bind ${working_directory}:/data hippocampusgirl-enigma-imputation-protocol-latest.sif</code></td>
   </tr>
   <tr>
     <td>Docker</td>
