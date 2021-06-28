@@ -97,7 +97,6 @@ jobs:
       matrix:
         singularity_version:
           - "latest"
-          - "v2.6"
 
     container:
       image: quay.io/singularity/docker2singularity:${{ matrix.singularity_version }}
@@ -110,11 +109,12 @@ jobs:
         shell: bash
         run: |
           SINGULARITY_IMAGE_NAME=$(echo -n ${DOCKER_IMAGE_NAME} | tr -c '[:alnum:]' '-')
-          echo SINGULARITY_IMAGE_NAME=${SINGULARITY_IMAGE_NAME} 
+          mkdir -p -v /output
           docker-entrypoint.sh /docker2singularity.sh \
             --name ${SINGULARITY_IMAGE_NAME} \
             ${DOCKER_IMAGE_NAME}
-          SINGULARITY_IMAGE_FILE=$(find "/output/${SINGULARITY_IMAGE_NAME}.*" | head -n1)
+          ls /output
+          SINGULARITY_IMAGE_FILE=$(find "/output" -type f | head -n1)
           echo "::set-output name=image::${SINGULARITY_IMAGE_FILE}"
 
       - uses: BetaHuhn/do-spaces-action@v2
