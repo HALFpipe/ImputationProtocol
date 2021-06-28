@@ -114,7 +114,7 @@ jobs:
         with:
           access_key: ${{ secrets.DIGITALOCEAN_ACCESS_KEY }}
           secret_key: ${{ secrets.DIGITALOCEAN_SECRET_KEY }}
-          space_name: ${{ secrets.DIGITALOCEAN_SPACE_NAME }}
+          space_name: hippocampusgirl
           space_region: ${{ secrets.DIGITALOCEAN_REGION }}
           source: ${{ steps.singularity_build.outputs.image }}
           out_dir: singularity
