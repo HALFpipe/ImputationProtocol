@@ -34,16 +34,24 @@ This will use approximately one gigabyte of storage.
 <thead>
   <tr>
     <th><b>Container platform</b></th>
+    <th><b>Version</b></th>
     <th><b>Command</b></th>
   </tr>
 </thead>
 <tbody>
   <tr>
     <td>Singularity</td>
-    <td>Download the <code>.sif</code> file from <a href="https://tinyurl.com/53pf6kzv">https://tinyurl.com/53pf6kzv</a></td>
+    <td>3.x</td>
+    <td><code>wget <a href="http://download.fmri.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.sif">http://download.fmri.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.sif</code></a></td>
+  </tr>
+  <tr>
+    <td>Singularity</td>
+    <td>2.x</td>
+    <td><code>wget <a href="http://download.fmri.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.sif">http://download.fmri.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.simg</code></a></td>
   </tr>
   <tr>
     <td>Docker</td>
+    <td></td>
     <td><code>docker pull hippocampusgirl/enigma-imputation-protocol:latest</code></td>
   </tr>
 </tbody>

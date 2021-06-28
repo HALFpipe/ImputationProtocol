@@ -123,6 +123,7 @@ jobs:
           DIGITALOCEAN_ACCESS_KEY: ${{ secrets.DIGITALOCEAN_ACCESS_KEY }}
           DIGITALOCEAN_SECRET_KEY: ${{ secrets.DIGITALOCEAN_SECRET_KEY }}
           DIGITALOCEAN_REGION: ${{ secrets.DIGITALOCEAN_REGION }}
+          DIGITALOCEAN_SPACE_NAME: hippocampusgirl
         run: |
           apk add python3  py3-pip
           pip3 install --upgrade pip
@@ -136,5 +137,5 @@ jobs:
             --dump-config \
             > ${HOME}/.s3cfg
           SINGULARITY_IMAGE_FILE=$(find "/output" -type f | head -n1)
-          s3cmd put ${SINGULARITY_IMAGE_FILE} s3://hippocampusgirl/singularity/
-          s3cmd setacl s3://hippocampusgirl/singularity/$(basename ${SINGULARITY_IMAGE_FILE}) --acl-public
+          s3cmd put ${SINGULARITY_IMAGE_FILE} s3://${DIGITALOCEAN_SPACE_NAME}/singularity/
+          s3cmd setacl s3://${DIGITALOCEAN_SPACE_NAME}/singularity/$(basename ${SINGULARITY_IMAGE_FILE}) --acl-public
