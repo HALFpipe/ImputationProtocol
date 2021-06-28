@@ -104,7 +104,7 @@ jobs:
         shell: bash
         run: |
           SINGULARITY_IMAGE_NAME=$(echo -n ${DOCKER_IMAGE_NAME} | tr -c '[:alnum:]' '-')
-          docker2singularity.sh \
+          docker-entrypoint.sh /docker2singularity.sh \
             --name ${SINGULARITY_IMAGE_NAME} \
             ${DOCKER_IMAGE_NAME}
           SINGULARITY_IMAGE_FILE=$(find "$(pwd)/${SINGULARITY_IMAGE_NAME}.*" | head -n1)
