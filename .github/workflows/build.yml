@@ -13,14 +13,9 @@ jobs:
   main:
     runs-on: ubuntu-latest
 
-    services:
-      dind:
-        image: docker:dind
-        ports: 
-          - 2375/tcp
-        env:
-          DOCKER_DRIVER: overlay
-          DOCKER_HOST: tcp://localhost:2375
+    container:
+      image: quay.io/singularity/docker2singularity:latest
+      options: --privileged
 
     steps:
       - name: Checkout
@@ -97,16 +92,9 @@ jobs:
       - name: Singularity build
         id: singularity_build
         shell: bash
-        env:
-          DOCKER_IMAGE_NAME: ${{ steps.build_tag.outputs.tag }}
-          DOCKER_HOST: "tcp://127.0.0.1:${{ job.services.dind.ports[2375] }}"
         run: |
-          docker info
           SINGULARITY_IMAGE_NAME=$(echo -n ${DOCKER_IMAGE_NAME} | tr -c '[:alnum:]' '-')
-          docker run --rm \
-            --privileged \
-            --volume $(pwd):/output \
-            quay.io/singularity/docker2singularity:latest \
+          docker2singularity \
             --name ${SINGULARITY_IMAGE_NAME} \
             ${DOCKER_IMAGE_NAME}
           SINGULARITY_IMAGE_FILE=$(find "$(pwd)/${SINGULARITY_IMAGE_NAME}.*" | head -n1)
