@@ -11,7 +11,7 @@ run_cmd() {
 	printf "$cmd\n"
     fi
 
-    ( "$@" )
+    eval "$@"
 
     EXIT_CODE=$?
 
@@ -27,5 +27,5 @@ run_cmd() {
 export HADOOP_PID_DIR=/data/hadoop/pids
 
 for PID_FILE in ${HADOOP_PID_DIR}/hadoop-*.pid; do
-    run_cmd "kill $(cat ${PID_FILE})"
+    run_cmd "kill \$(cat ${PID_FILE})"
 done

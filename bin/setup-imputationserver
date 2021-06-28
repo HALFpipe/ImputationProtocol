@@ -11,7 +11,7 @@ run_cmd() {
 	printf "$cmd\n"
     fi
 
-    ( "$@" )
+    eval "$@"
 
     EXIT_CODE=$?
 
