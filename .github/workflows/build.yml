@@ -114,15 +114,26 @@ jobs:
           docker-entrypoint.sh /docker2singularity.sh \
             --name ${SINGULARITY_IMAGE_NAME} \
             ${DOCKER_IMAGE_NAME}
-          ls /output
-          SINGULARITY_IMAGE_FILE=$(find "/output" -type f | head -n1)
-          echo "::set-output name=image::${SINGULARITY_IMAGE_FILE}"
+                    echo "::set-output name=image::${SINGULARITY_IMAGE_FILE}"
 
-      - uses: BetaHuhn/do-spaces-action@v2
-        with:
-          access_key: ${{ secrets.DIGITALOCEAN_ACCESS_KEY }}
-          secret_key: ${{ secrets.DIGITALOCEAN_SECRET_KEY }}
-          space_name: hippocampusgirl
-          space_region: ${{ secrets.DIGITALOCEAN_REGION }}
-          source: ${{ steps.docker2singularity.outputs.image }}
-          out_dir: singularity
+      - name: Upload to DigitalOcean
+        shell: bash  
+        env:
+          DIGITALOCEAN_ACCESS_KEY: ${{ secrets.DIGITALOCEAN_ACCESS_KEY }}
+          DIGITALOCEAN_SECRET_KEY: ${{ secrets.DIGITALOCEAN_SECRET_KEY }}
+          DIGITALOCEAN_REGION: ${{ secrets.DIGITALOCEAN_REGION }}
+        run: |
+          apk add python3 py3-pip
+          pip install --upgrade pip
+          pip install s3cmd
+          s3cmd --stop-on-error \
+            --ssl --no-encrypt \
+            --access_key="${DIGITALOCEAN_ACCESS_KEY}" \
+            --secret_key="${DIGITALOCEAN_SECRET_KEY}" \
+            --host="${DIGITALOCEAN_REGION}.digitaloceanspaces.com" \
+            --host-bucket="%(bucket)s.nyc3.digitaloceanspaces.com" \
+            --dump-config \
+            > ${HOME}/.s3cfg
+          SINGULARITY_IMAGE_FILE=$(find "/output" -type f | head -n1)
+          s3cmd put ${SINGULARITY_IMAGE_FILE} s3://hippocampusgirl/singularity/
+          s3cmd setacl s3://hippocampusgirl/singularity/$(basename ${SINGULARITY_IMAGE_FILE}) --acl-public
