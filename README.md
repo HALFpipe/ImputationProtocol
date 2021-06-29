@@ -123,6 +123,10 @@ The following commands will start a <a href="https://hadoop.apache.org/">Hadoop<
 instance on your computer, verify that it works, and then download the genome
 reference that will be used for imputation (around 15 GB of data, so it may take a while).
 </p>
+<p>
+If you encounter any warnings or messages while running these commands, do not worry. If
+something went wrong, then you will see a clear error message that contains the word "error".
+</p>
 
 ```bash
 setup-hadoop --n-cores 8
