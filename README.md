@@ -221,7 +221,9 @@ checkflip --bfile ../raw/my_sample --population eur
 ```
 
 The command will create a `.bed` file set at `../raw/my_sample.checkflip` which
-will have all strand flips resolved.
+will have all strand flips resolved. You should now use this corrected file to
+re-run the `enigma-qc` script, and then retry running the `imputationserver`
+command.
 
 ### Velocity
 
