@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, Literal, Union
 
 import re
 import gzip
@@ -32,7 +32,7 @@ class MatchResult:
 class Variant:
     id: str
 
-    chromosome: int
+    chromosome: Union[int, Literal["X"]]
     position: Optional[int]
 
     allele_a: str
@@ -279,11 +279,11 @@ if __name__ == "__main__":
 
     # read sample
 
-    frq_file = f"{args.bfile}.frq"
-    if not Path(frq_file).exists():
+    afreq_file = f"{args.bfile}.afreq"
+    if not Path(afreq_file).exists():
         verbose_call(
             [
-                "plink",
+                "plink2",
                 "--bfile",
                 args.bfile,
                 "--out",
@@ -294,43 +294,68 @@ if __name__ == "__main__":
         )
 
     sample_variants_by_id = dict()
-    with open(frq_file, "rt") as frq_file_handle:
-        logger.info(f'Reading "{frq_file}"')
+    with open(afreq_file, "rt") as afreq_file_handle:
+        logger.info(f'Reading "{afreq_file}"')
 
-        header = frq_file_handle.readline()
+        header = afreq_file_handle.readline()
         columns = header.split()
 
-        assert columns[0] == "CHR"
-        assert columns[1] == "SNP"
-        assert columns[2] == "A1"
-        assert columns[3] == "A2"
-        assert columns[4] == "MAF"
-        assert columns[5] == "NCHROBS"
+        assert columns[0] == "#CHROM"
+        assert columns[1] == "ID"
+        assert columns[2] == "REF"
+        assert columns[3] == "ALT"
+        assert columns[4] == "ALT_FREQS"
+        assert columns[5] == "OBS_CT"
 
-        for line in frq_file_handle:
+        for line in afreq_file_handle:
             (
                 chromosome,
                 id,
-                allele_a,
-                allele_b,
-                maf,
+                allele_ref,
+                allele_alt,
+                alt_freq,
                 n_observations,
             ) = line.split()
 
-            if maf == "NA":
-                maf = nan
+            # use plink 1.9 missing codes
+
+            if allele_ref == ".":
+                allele_ref = "0"
+
+            if allele_alt == ".":
+                allele_alt = "0"
+
+            # convert freq
+
+            if alt_freq == "NA":
+                alt_freq = nan
             else:
-                maf = float(maf)
+                alt_freq = float(alt_freq)
+
             n_observations = int(n_observations)
+
+            # normalize chromosome
+
+            if chromosome == "X":
+                pass
+            elif chromosome.isdigit():
+                chromosome = int(chromosome)
+
+                if chromosome == 23:
+                    chromosome = "X"
+                elif chromosome > 23:
+                    continue
+            else:
+                continue
 
             variant = Variant(
                 id=id,
-                chromosome=int(chromosome),
+                chromosome=chromosome,
                 position=None,
-                allele_a=allele_a,
-                allele_b=allele_b,
-                frequency_a=maf,
-                frequency_b=1 - maf,
+                allele_a=allele_ref,
+                allele_b=allele_alt,
+                frequency_a=1 - alt_freq,
+                frequency_b=alt_freq,
                 n_observations=n_observations,
             )
 
@@ -345,10 +370,42 @@ if __name__ == "__main__":
         for line in bim_file_handle:
             chromosome, id, _, position, allele_a, allele_b = line.split()
 
+            # use plink 1.9 missing codes
+
+            if allele_a == ".":
+                allele_a = "0"
+
+            if allele_b == ".":
+                allele_b = "0"
+
+            # normalize chromosome
+
+            if chromosome == "X":
+                pass
+            elif chromosome.isdigit():
+                chromosome = int(chromosome)
+
+                if chromosome == 23:
+                    chromosome = "X"
+                elif chromosome > 23:
+                    continue
+            else:
+                continue
+
             variant = sample_variants_by_id[id]
             variant.position = int(position)
 
-            assert variant.chromosome == int(chromosome)
+            assert variant.chromosome == chromosome
+
+            if variant.alleles == (allele_a, allele_b):
+                pass
+            elif variant.alleles == (allele_b, allele_a):
+                variant = variant.turn()
+            else:
+                raise ValueError(
+                    f'Mismatch between "{afreq_file}" and "{bim_file}"'
+                )
+
             assert variant.allele_a == allele_a
             assert variant.allele_b == allele_b
 
@@ -360,11 +417,15 @@ if __name__ == "__main__":
         match = chromosome_regex.search(legend_file)
         chromosome = match.group("chromosome")
 
-        if chromosome in frozenset(["X", "Y"]):
-            logger.info(
-                f'Skipping chromosome {chromosome} legend file "{legend_file}"'
-            )
-            return
+        if chromosome != "X":
+            if chromosome.isdigit():
+                chromosome = int(chromosome)
+            else:
+                logger.info(
+                    f"Skipping chromosome {chromosome} "
+                    f'legend file "{legend_file}"'
+                )
+                return
 
         legend_file_variants = dict()
         legend_file_variant_count = 0
@@ -388,7 +449,7 @@ if __name__ == "__main__":
 
                 variant = Variant(
                     id=id,
-                    chromosome=int(chromosome),
+                    chromosome=chromosome,
                     position=int(position),
                     allele_a=allele_a,
                     allele_b=allele_b,
@@ -484,6 +545,8 @@ if __name__ == "__main__":
                 update_alleles.append(
                     (sample_variant.id, *sample_variant.alleles, *new_alleles)
                 )
+
+    del reference_variants
 
     # write out
     prefix = f"{args.bfile}.checkflip"
