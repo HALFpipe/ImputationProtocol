@@ -231,3 +231,15 @@ command.
 
 You likely have bad permissions in your working directory. You can either try to
 fix them, or start over with a fresh working directory.
+
+### VCF violates the official specification
+
+> Warning: At least one VCF allele code violates the official specification;
+> other tools may not accept the file.  (Valid codes must either start with a
+> '<', only contain characters in {A,C,G,T,N,a,c,g,t,n}, be an isolated '*',
+> or represent a breakend.)
+
+This message occurs for example when you have indels in your raw data. You can
+ignore this message, because the
+[Michigan Imputation Server](https://imputationserver.readthedocs.io/en/latest/)
+will remove these invalid variants in its quality control step.
