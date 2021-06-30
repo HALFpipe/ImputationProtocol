@@ -40,7 +40,7 @@ run_cmd wget --continue -O /data/downloads/1000genomes-phase3.zip "https://imput
 run_cmd cloudgene install /data/downloads/imputationserver.zip
 run_cmd cloudgene install /data/downloads/1000genomes-phase3.zip
 
-run_cmd sed -i "s/value: auto/value: password/g" /data/cloudgene/apps/imputationserver/*/*.yaml
+run_cmd "sed -i \"s/value: auto/value: password/g\" /data/cloudgene/apps/imputationserver/*/*.yaml"
 
 run_cmd find /data/cloudgene/apps -type d -exec chmod ugo+w {} +  # need to be writable because it will be used as a temp dir
 run_cmd find /data/cloudgene/apps -type f -exec chmod ugo-w {} +  # should not be writable, or cloudgene will delete the files after import to hadoop hdfs
