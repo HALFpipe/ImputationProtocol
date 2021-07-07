@@ -25,6 +25,10 @@ The container comes with all the software needed to run the imputation protocol.
 You can either do this manually based on the official instructions, or use the
 step-by-step guide below.
 
+The guide makes some suggestions for folder names (e.g. `mds`, `raw`, `qc`),
+but these can also be chosen freely. The only exceptions to this rule are the 
+folders `cloudgene`, `hadoop`, `input` and `output` in `/data` inside the container.
+
 <ol>
 
 <li>
@@ -67,6 +71,12 @@ intermediate files and outputs. This directory should be empty and should have
 sufficient space available. We will store the path of the working directory in
 the variable <code>working_directory</code>, and then create the new directory
 and some subfolders.
+</p>
+<p>
+Usually, you will only need to do this once, as you can re-use the working
+directory for multiple datasets. Note that this variable will only exist for
+the duration of your terminal session, so you should redefine it if you exit 
+and then resume later.
 </p>
 
 ```bash
@@ -119,13 +129,18 @@ following commands.
 <p>
 Inside the container, we will first set up our local instance of the
 <a href="https://imputationserver.readthedocs.io/en/latest/">Michigan Imputation Server</a>.
-The following commands will start a <a href="https://hadoop.apache.org/">Hadoop</a>
-instance on your computer, verify that it works, and then download the genome
-reference that will be used for imputation (around 15 GB of data, so it may take a while).
 </p>
 <p>
-If you encounter any warnings or messages while running these commands, do not worry. If
-something went wrong, then you will see a clear error message that contains the word "error".
+The <code>setup-hadoop</code> command will start a <a href="https://hadoop.apache.org/">Hadoop</a> instance on your computer, which consists of four background processes. When you are finished processing all your samples, you can stop them with the  <code>stop-hadoop</code> command. If you are using Docker, then these processes will be stopped automatically when you exit the container shell.
+</p>
+<p>
+The <code>setup-imputationserver</code> script will then verify that the Hadoop instance works, and then download the genome reference that will be used for imputation (around 15 GB of data, so it may take a while).
+</p>
+<p>
+If you are resuming analyses in an existing working directory, and do not still have the Hadoop background processes running, then you should re-run the setup commands. If they are still running, then you can skip this step.
+</p>
+<p>
+If you encounter any warnings or messages while running these commands, you should consult with an expert to find out what they mean and if they may be important. However, processing will usually complete without issues, even if some warnings occur. If something important goes wrong, then you will see a clear error message that contains the word "error".
 </p>
 
 ```bash
@@ -137,21 +152,34 @@ setup-imputationserver
 
 <li>
 <p>
-Next, go to <code>/data/mds</code>, and run <code>enigma-mds</code> for your <code>.bed</code>
-file set. The script should now have created the files <code>mdsplot.pdf</code>
-and  <code>HM3_b37mds2R.mds.csv</code>, which are summary statistics that you
-will need to share with your working group.
+Next, go to <code>/data/mds</code>, and run the script <code>enigma-mds</code> for your <code>.bed</code> file set. The script creates the files <code>mdsplot.pdf</code> and <code>HM3_b37mds2R.mds.csv</code>, which are summary statistics that you will need to share with your working group as per the <a href="https://enigma.ini.usc.edu/wp-content/uploads/2020/02/ENIGMA-1KGP_p3v5-Cookbook_20170713.pdf">ENIGMA Imputation Protocol</a>.
 </p>
 <p>
-If you have multiple <code>.bed</code> file sets, you should run the script in a
-separate folder for each one. The script always outputs to the current folder.
+If you have multiple <code>.bed</code> file sets, you should run the script in a separate folder for each one. The script always outputs to the current folder, and may overwrite the results when you re-run it. 
 </p>
-
+<p>
+The first example is for just one dataset.
+</p>
+  
 ```bash
 cd /data/mds
 enigma-mds --bfile ../raw/my_sample
 ```
 
+<p>
+And, second, for multiple datasets.
+</p>
+  
+```bash
+mkdir /data/mds/{sample_a,sample_b}
+  
+cd /data/mds/sample_a
+enigma-mds --bfile ../raw/my_sample_a
+
+cd /data/mds/sample_b
+enigma-mds --bfile ../raw/my_sample_b
+```
+  
 </li>
 
 <li>
@@ -166,7 +194,10 @@ format for imputation.
 The script places intermediate files in the current folder, and the final
 <code>.vcf.gz</code> files in <code>/data/input/my_sample</code> where
 they can be accessed by the <code>imputationserver</code> script in the
-next step.
+next step. 
+</p>
+<p>
+The input path is hard-coded, because the imputation server is quite strict and expects a directory with just the <code>.vcf.gz</code> files and nothing else, so to avoid any problems we create that directory automatically.
 </p>
 
 ```bash
