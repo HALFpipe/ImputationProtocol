@@ -22,12 +22,12 @@ This document assumes that you have either
 ## Usage
 
 The container comes with all the software needed to run the imputation protocol.
-You can either do this manually based on the official instructions, or use the
+You can either do this manually based on the [official instructions](https://enigma.ini.usc.edu/wp-content/uploads/2020/02/ENIGMA-1KGP_p3v5-Cookbook_20170713.pdf), or use the
 step-by-step guide below.
 
 The guide makes some suggestions for folder names (e.g. `mds`, `raw`, `qc`),
 but these can also be chosen freely. The only exceptions to this rule are the 
-folders `cloudgene`, `hadoop`, `input` and `output` in `/data` inside the container.
+folders `cloudgene`, `hadoop`, `input` and `output` inside the working directory (in `/data` inside the container).
 
 <ol>
 
