@@ -75,7 +75,7 @@ and some subfolders.
 <p>
 Usually, you will only need to do this once, as you can re-use the working
 directory for multiple datasets. Note that this variable will only exist for
-the duration of your terminal session, so you should redefine it if you exit 
+the duration of your terminal session, so you should re-define it if you exit 
 and then resume later.
 </p>
 
