@@ -48,12 +48,12 @@ This will use approximately one gigabyte of storage.
   <tr>
     <td>Singularity</td>
     <td>3.x</td>
-    <td><code>wget <a href="http://download.fmri.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.sif">http://download.fmri.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.sif</code></a></td>
+    <td><code>wget <a href="http://download.gwas.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.sif">http://download.gwas.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.sif</code></a></td>
   </tr>
   <tr>
     <td>Singularity</td>
     <td>2.x</td>
-    <td><code>wget <a href="http://download.fmri.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.sif">http://download.fmri.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.simg</code></a></td>
+    <td><code>wget <a href="http://download.gwas.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.simg">http://download.gwas.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.simg</code></a></td>
   </tr>
   <tr>
     <td>Docker</td>
@@ -75,7 +75,7 @@ and some subfolders.
 <p>
 Usually, you will only need to do this once, as you can re-use the working
 directory for multiple datasets. Note that this variable will only exist for
-the duration of your terminal session, so you should redefine it if you exit 
+the duration of your terminal session, so you should re-define it if you exit 
 and then resume later.
 </p>
 
