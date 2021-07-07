@@ -269,6 +269,12 @@ will have all strand flips resolved. You should now use this corrected file to
 re-run the `enigma-qc` script, and then retry running the `imputationserver`
 command.
 
+### Genome reference
+
+> Error: No chunks passed the QC step. Imputation cannot be started!
+
+This error happens when your input data uses a different genome reference from what the imputation server expects (`hg19`). You can do this with [`LiftOver`](https://genome.sph.umich.edu/wiki/LiftOver).
+
 ### Velocity
 
 > Job execution failed: Velocity could not be initialized!
