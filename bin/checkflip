@@ -301,6 +301,13 @@ if __name__ == "__main__":
             "/data/cloudgene/apps/1000g-phase-3-v5/2.0.0/"
             "legends/ALL_1000G_phase3_integrated_v5_chr*.legend.gz"
         )
+        if len(args.legends) == 0:
+            raise FileNotFoundError(
+                "Could not find legend files. "
+                "Please check if the imputation server is installed correctly "
+                "or manually specify the legend files with the "
+                '"--legends" argument'
+            )
 
     # read sample
 
