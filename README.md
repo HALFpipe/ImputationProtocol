@@ -9,7 +9,7 @@ With the advent of stricter data privacy laws in many jurisdictions, it has
 become impossible for some researchers to use the
 [Michigan Imputation Server](https://imputationserver.readthedocs.io/en/latest/)
 to phase and impute genotype data. This project allows you to use the open
-source code behind the server, and the rest of the
+source code behind the server with the [1000 Genomes Phase 3 v5](https://imputationserver.readthedocs.io/en/latest/reference-panels/#1000-genomes-phase-3-version-5) reference, and the rest of the
 [ENIGMA Imputation Protocol](https://enigma.ini.usc.edu/wp-content/uploads/2020/02/ENIGMA-1KGP_p3v5-Cookbook_20170713.pdf),
 on your local workstation or high-performance compute cluster.
 
@@ -91,6 +91,10 @@ mkdir -p -v ${working_directory}/{raw,mds,qc}
 Copy your raw data to the <code>raw</code> subfolder of the working directory. If you
 have multiple <code>.bed</code> file sets that you want to process, copy them all.
 </p>
+<p>
+Copy your raw data to the <code>raw</code> subfolder of the working directory. If you
+have multiple <code>.bed</code> file sets that you want to process, copy them all.
+</p>
 
 ```bash
 cp -v my_sample.bed my_sample.bim my_sample.fam ${working_directory}/raw
@@ -134,7 +138,7 @@ Inside the container, we will first set up our local instance of the
 The <code>setup-hadoop</code> command will start a <a href="https://hadoop.apache.org/">Hadoop</a> instance on your computer, which consists of four background processes. When you are finished processing all your samples, you can stop them with the  <code>stop-hadoop</code> command. If you are using Docker, then these processes will be stopped automatically when you exit the container shell.
 </p>
 <p>
-The <code>setup-imputationserver</code> script will then verify that the Hadoop instance works, and then download the genome reference that will be used for imputation (around 15 GB of data, so it may take a while).
+The <code>setup-imputationserver</code> script will then verify that the Hadoop instance works, and then download the <a href="https://imputationserver.readthedocs.io/en/latest/reference-panels/#1000-genomes-phase-3-version-5">1000 Genomes Phase 3 v5</a> genome reference that will be used for imputation (around 15 GB of data, so it may take a while).
 </p>
 <p>
 If you are resuming analyses in an existing working directory, and do not still have the Hadoop background processes running, then you should re-run the setup commands. If they are still running, then you can skip this step.
@@ -209,11 +213,11 @@ enigma-qc --bfile ../raw/my_sample --study-name my_sample
 <li>
 <p>
 Finally, run the <code>imputationserver</code> command for the correct sample population
-(for example <code>eur</code> or <code>mixed</code>).
+(usually <code>mixed</code>).
 </p>
 
 ```bash
-imputationserver --study-name my_sample --population eur
+imputationserver --study-name my_sample --population mixed
 ```
 
 <p>
