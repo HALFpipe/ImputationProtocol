@@ -3,16 +3,21 @@
 from __future__ import annotations
 from typing import Optional, Literal, Union
 
+from dataclasses import dataclass, field
+from collections import defaultdict
+
 import re
 import gzip
 from argparse import ArgumentParser
-from dataclasses import dataclass, field
 import logging
-from math import nan, isfinite
-from subprocess import call
+
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
 from glob import glob
+
+from math import nan, isfinite
+
+from subprocess import call
+from multiprocessing.dummy import Pool
 
 logger = logging.getLogger("checkflip")
 
@@ -189,8 +194,10 @@ class Variant:
         filled.allele_a = other.allele_a
         filled.allele_b = other.allele_b
 
-        if len(other.allele_a) > len(other.allele_b):
-            # other.allele_a is the insertion
+        if len(filled.allele_a) > len(filled.allele_b):
+
+            # filled.allele_a is the insertion
+
             if self.allele_a == "I":
                 if self.allele_b == "D" or self.allele_b == "0":
                     return MatchResult(variant=filled)
@@ -202,8 +209,11 @@ class Variant:
                     return MatchResult(variant=filled.turn())
                 elif self.allele_b == "D":
                     return MatchResult(variant=filled)
+
         else:
-            # other.allele_b is the insertion
+
+            # filled.allele_b is the insertion
+
             if self.allele_a == "I":
                 if self.allele_b == "D" or self.allele_b == "0":
                     return MatchResult(variant=filled.turn())
@@ -304,8 +314,8 @@ if __name__ == "__main__":
         if len(args.legends) == 0:
             raise FileNotFoundError(
                 "Could not find legend files. "
-                "Please check if the imputation server is installed correctly "
-                "or manually specify the legend files with the "
+                "Please make sure that the imputation server is installed "
+                "correctly or manually specify the legend files with the "
                 '"--legends" argument'
             )
 
@@ -429,11 +439,16 @@ if __name__ == "__main__":
 
             sample_variants.append(variant)
 
+    sample_chromosomes = frozenset(
+        variant.chromosome
+        for variant in sample_variants
+    )
+
     # read reference
 
     def read_legend_file(
         legend_file: str
-    ) -> Optional[dict[str, list[Variant]]]:
+    ) -> Optional[tuple[Chromosome, dict[int, list[Variant]]]]:
         match = chromosome_regex.search(legend_file)
 
         if match is None:
@@ -454,7 +469,7 @@ if __name__ == "__main__":
             )
             return None
 
-        legend_file_variants: dict[str, list[Variant]] = dict()
+        legend_file_variants: dict[int, list[Variant]] = defaultdict(list)
         legend_file_variant_count = 0
 
         with gzip.open(legend_file, "rt") as legend_file_handle:
@@ -471,23 +486,21 @@ if __name__ == "__main__":
 
             for line in legend_file_handle:
                 values = line.split()
-                id, position, allele_a, allele_b = values[:4]
+                id, position_str, allele_a, allele_b = values[:4]
                 aaf = float(values[aaf_column_index])
 
                 variant = Variant(
                     id=id,
                     chromosome=chromosome,
-                    position=int(position),
+                    position=int(position_str),
                     allele_a=allele_a,
                     allele_b=allele_b,
                     frequency_a=1 - aaf,
                     frequency_b=aaf,
                 )
+                assert variant.position is not None
 
-                position_str = f"{chromosome}:{variant.position:d}"
-                if position_str not in legend_file_variants:
-                    legend_file_variants[position_str] = list()
-                legend_file_variants[position_str].append(variant)
+                legend_file_variants[variant.position].append(variant)
                 legend_file_variant_count += 1
 
         logger.info(
@@ -495,16 +508,7 @@ if __name__ == "__main__":
             f'for chromosome {chromosome} from legend file "{legend_file}"'
         )
 
-        return legend_file_variants
-
-    # use multithreading to hide latency
-    with ThreadPoolExecutor() as executor:
-        reference_variants: dict[str, list[Variant]] = dict()
-        for legend_file_variants in executor.map(
-            read_legend_file, args.legends
-        ):
-            if legend_file_variants is not None:
-                reference_variants |= legend_file_variants
+        return chromosome, legend_file_variants
 
     # match sample and reference
     counters = dict(not_in_reference=0)
@@ -513,74 +517,102 @@ if __name__ == "__main__":
     flip = list()
     update_alleles = list()
 
-    for sample_variant in sample_variants:
-        position_str = (
-            f"{sample_variant.chromosome}:{sample_variant.position:d}"
-        )
+    reference_chromosomes: set[Chromosome] = set()
 
-        if (
-            position_str not in reference_variants
-            or len(reference_variants[position_str]) == 0
+    # use multithreading to hide latency
+    with Pool() as pool:
+        for legend_file_result in pool.imap_unordered(
+            read_legend_file, args.legends
         ):
-            exclude.append(sample_variant.id)
-            logger.debug(
-                f"Excluding variant {sample_variant.id} "
-                "because it could not be found in the reference"
-            )
-            counters["not_in_reference"] += 1
-            continue
+            if legend_file_result is None:
+                continue
 
-        reference_variant = None
-        for reference_variant in reference_variants[position_str]:
-            match_result = sample_variant.match_alleles(reference_variant)
-            if match_result.variant is not None:
-                break
+            chromosome, reference_variants = legend_file_result
+            reference_chromosomes.add(chromosome)
 
-        matched_variant = match_result.variant
+            for sample_variant in sample_variants:
+                if sample_variant.chromosome != chromosome:
+                    continue
 
-        if matched_variant is None or len(match_result.messages) > 0:
-            print_variant = matched_variant
-            if print_variant is None:
-                print_variant = sample_variant
-            exclude.append(sample_variant.id)
-            logger.debug(
-                f"Excluding variant \n{print_variant} "
-                "because it could not be matched to the reference variants \n"
-                + "\n".join(map(str, reference_variants[position_str]))
-                + f" with messages {match_result.messages}"
-            )
-            for message in match_result.messages:
-                if message not in counters:
-                    counters[message] = 0
-                counters[message] += 1
-            continue
-
-        is_turned = False
-        for action in matched_variant.actions:
-            if action == "turn":
-                is_turned = not is_turned
-            elif action == "flip":
-                flip.append(sample_variant.id)
-            elif action == "fill":
-                pass  # we leave this up to the imputation step
-            elif action == "fill_indel":
-                new_alleles = matched_variant.alleles
-                if is_turned:
-                    allele_a, allele_b = new_alleles
-                    new_alleles = allele_b, allele_a
-                with_missing_alleles = tuple((
-                    new if old not in frozenset(["0"]) else old
-                    for old, new in zip(sample_variant.alleles, new_alleles)
-                ))  # don't overwrite missing values
-                update_alleles.append(
-                    (
-                        sample_variant.id,
-                        *sample_variant.alleles,
-                        *with_missing_alleles,
+                position = sample_variant.position
+                if position is None:
+                    logger.warning(
+                        f"Missing position for variant {sample_variant.id}"
                     )
-                )
+                    continue
 
-    del reference_variants
+                if (
+                    position not in reference_variants
+                    or len(reference_variants[position]) == 0
+                ):
+                    exclude.append(sample_variant.id)
+                    logger.debug(
+                        f"Excluding variant {sample_variant.id} "
+                        "because it could not be found in the reference"
+                    )
+                    counters["not_in_reference"] += 1
+                    continue
+
+                match_result: Optional[MatchResult] = None
+                reference_variant = None
+                for reference_variant in reference_variants[position]:
+                    match_result = sample_variant.match_alleles(
+                        reference_variant
+                    )
+                    if match_result.variant is not None:
+                        break
+
+                assert match_result is not None
+                matched_variant = match_result.variant
+
+                if matched_variant is None or len(match_result.messages) > 0:
+                    print_variant = matched_variant
+                    if print_variant is None:
+                        print_variant = sample_variant
+                    exclude.append(sample_variant.id)
+                    logger.debug(
+                        f"Excluding variant \n{print_variant} because it "
+                        "could not be matched to the reference variants \n"
+                        + "\n".join(map(str, reference_variants[position]))
+                        + f" with messages {match_result.messages}"
+                    )
+                    for message in match_result.messages:
+                        if message not in counters:
+                            counters[message] = 0
+                        counters[message] += 1
+                    continue
+
+                for action in matched_variant.actions:
+                    if action == "turn":
+                        pass  # we leave this up to the imputation step
+                    elif action == "flip":
+                        flip.append(sample_variant.id)
+                    elif action == "fill":
+                        pass  # we leave this up to the imputation step
+                    elif action == "fill_indel":
+                        new_alleles = matched_variant.alleles
+                        with_missing_alleles = (
+                            new if old not in frozenset(["0"]) else old
+                            for old, new in zip(
+                                sample_variant.alleles, new_alleles
+                            )
+                        )  # don't overwrite missing values
+                        update_alleles.append(
+                            (
+                                sample_variant.id,
+                                *sample_variant.alleles,
+                                *with_missing_alleles,
+                            )
+                        )
+
+    if not sample_chromosomes.issubset(reference_chromosomes):
+        missing_chromosomes = (
+            sample_chromosomes - reference_chromosomes
+        )
+        logger.warning(
+            "Missing reference data for sample chromosomes "
+            f"{missing_chromosomes}. "
+        )
 
     # write out
     prefix = f"{args.bfile}.checkflip"
