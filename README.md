@@ -48,12 +48,12 @@ This will use approximately one gigabyte of storage.
   <tr>
     <td>Singularity</td>
     <td>3.x</td>
-    <td><code>wget <a href="http://download.fmri.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.sif">http://download.fmri.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.sif</code></a></td>
+    <td><code>wget <a href="http://download.gwas.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.sif">http://download.gwas.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.sif</code></a></td>
   </tr>
   <tr>
     <td>Singularity</td>
     <td>2.x</td>
-    <td><code>wget <a href="http://download.fmri.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.sif">http://download.fmri.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.simg</code></a></td>
+    <td><code>wget <a href="http://download.gwas.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.simg">http://download.gwas.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.simg</code></a></td>
   </tr>
   <tr>
     <td>Docker</td>
