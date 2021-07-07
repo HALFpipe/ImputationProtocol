@@ -239,6 +239,16 @@ files are encrypted with the password <code>password</code>.
 
 ## Troubleshooting
 
+### My data is not in `.bed` file set format
+
+You will need to convert your data before you start. Usually, this is very straight-forward with the `plink` command.
+
+#### `.ped` file set format
+
+```bash
+plink --ped my_sample.ped --map my_sample.map --make-bed --out my_sample
+```
+
 ### Strand flips
 
 > Error: More than 100 obvious strand flips have been detected. Please check
