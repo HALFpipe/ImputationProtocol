@@ -22,6 +22,25 @@ def verbose_call(command: list[str]):
     call(command)
 
 
+Chromosome = Union[int, Literal["X"]]
+
+
+def parse_chromosome(chromosome_str: str) -> Optional[Chromosome]:
+    if chromosome_str == "X":
+        chromosome: Chromosome = "X"
+    elif chromosome_str.isdigit():
+        chromosome = int(chromosome_str)
+
+        if chromosome == 23:
+            chromosome = "X"
+        elif chromosome > 23:
+            return None
+    else:
+        return None
+
+    return chromosome
+
+
 @dataclass
 class MatchResult:
     variant: Optional[Variant] = None
@@ -32,7 +51,7 @@ class MatchResult:
 class Variant:
     id: str
 
-    chromosome: Union[int, Literal["X"]]
+    chromosome: Chromosome
     position: Optional[int]
 
     allele_a: str
@@ -97,7 +116,7 @@ class Variant:
         }
 
         if self.allele_a not in flip_dict or self.allele_b not in flip_dict:
-            return
+            return None
 
         flipped = self.copy()
 
@@ -209,7 +228,10 @@ class Variant:
             self.frequency_b - other.frequency_a
         ):
             if self.equals_alleles(other):
-                ambiguous_matched = self.flip().turn()
+                flipped = self.flip()
+                if flipped is None:
+                    return MatchResult(messages=["cannot_flip"])
+                ambiguous_matched = flipped.turn()
             else:
                 ambiguous_matched = self.turn()
 
@@ -250,7 +272,10 @@ class Variant:
             return filled.match_alleles(other)
 
         if "flip" not in self.actions:
-            return self.flip().match_alleles_incomplete(other)
+            flipped = self.flip()
+            if flipped is None:
+                return MatchResult(messages=["cannot_flip"])
+            return flipped.match_alleles_incomplete(other)
 
         return MatchResult(messages=["incomplete", "allele_mismatch"])
 
@@ -309,12 +334,12 @@ if __name__ == "__main__":
 
         for line in afreq_file_handle:
             (
-                chromosome,
+                chromosome_str,
                 id,
                 allele_ref,
                 allele_alt,
-                alt_freq,
-                n_observations,
+                alt_freq_str,
+                n_observations_str,
             ) = line.split()
 
             # use plink 1.9 missing codes
@@ -327,25 +352,18 @@ if __name__ == "__main__":
 
             # convert freq
 
-            if alt_freq == "NA":
+            if alt_freq_str == "NA":
                 alt_freq = nan
             else:
-                alt_freq = float(alt_freq)
+                alt_freq = float(alt_freq_str)
 
-            n_observations = int(n_observations)
+            n_observations = int(n_observations_str)
 
-            # normalize chromosome
+            # parse chromosome
 
-            if chromosome == "X":
-                pass
-            elif chromosome.isdigit():
-                chromosome = int(chromosome)
+            chromosome = parse_chromosome(chromosome_str)
 
-                if chromosome == 23:
-                    chromosome = "X"
-                elif chromosome > 23:
-                    continue
-            else:
+            if chromosome is None:
                 continue
 
             variant = Variant(
@@ -368,7 +386,7 @@ if __name__ == "__main__":
         logger.info(f'Reading "{bim_file}"')
 
         for line in bim_file_handle:
-            chromosome, id, _, position, allele_a, allele_b = line.split()
+            chromosome_str, id, _, position, allele_a, allele_b = line.split()
 
             # use plink 1.9 missing codes
 
@@ -378,18 +396,11 @@ if __name__ == "__main__":
             if allele_b == ".":
                 allele_b = "0"
 
-            # normalize chromosome
+            # parse chromosome
 
-            if chromosome == "X":
-                pass
-            elif chromosome.isdigit():
-                chromosome = int(chromosome)
+            chromosome = parse_chromosome(chromosome_str)
 
-                if chromosome == 23:
-                    chromosome = "X"
-                elif chromosome > 23:
-                    continue
-            else:
+            if chromosome is None:
                 continue
 
             variant = sample_variants_by_id[id]
@@ -413,21 +424,30 @@ if __name__ == "__main__":
 
     # read reference
 
-    def read_legend_file(legend_file: str) -> Optional[dict]:
+    def read_legend_file(
+        legend_file: str
+    ) -> Optional[dict[str, list[Variant]]]:
         match = chromosome_regex.search(legend_file)
-        chromosome = match.group("chromosome")
 
-        if chromosome != "X":
-            if chromosome.isdigit():
-                chromosome = int(chromosome)
-            else:
-                logger.info(
-                    f"Skipping chromosome {chromosome} "
-                    f'legend file "{legend_file}"'
-                )
-                return
+        if match is None:
+            logger.info(
+                f'Skipping legend file "{legend_file}" '
+                "because the chromosome cannot be read from the file name"
+            )
+            return None
 
-        legend_file_variants = dict()
+        chromosome_str = match.group("chromosome")
+
+        chromosome = parse_chromosome(chromosome_str)
+
+        if chromosome is None:
+            logger.info(
+                f"Skipping chromosome {chromosome_str} "
+                f'legend file "{legend_file}"'
+            )
+            return None
+
+        legend_file_variants: dict[str, list[Variant]] = dict()
         legend_file_variant_count = 0
 
         with gzip.open(legend_file, "rt") as legend_file_handle:
@@ -472,7 +492,7 @@ if __name__ == "__main__":
 
     # use multithreading to hide latency
     with ThreadPoolExecutor() as executor:
-        reference_variants = dict()
+        reference_variants: dict[str, list[Variant]] = dict()
         for legend_file_variants in executor.map(
             read_legend_file, args.legends
         ):
@@ -491,7 +511,10 @@ if __name__ == "__main__":
             f"{sample_variant.chromosome}:{sample_variant.position:d}"
         )
 
-        if position_str not in reference_variants:
+        if (
+            position_str not in reference_variants
+            or len(reference_variants[position_str]) == 0
+        ):
             exclude.append(sample_variant.id)
             logger.debug(
                 f"Excluding variant {sample_variant.id} "
@@ -500,7 +523,6 @@ if __name__ == "__main__":
             counters["not_in_reference"] += 1
             continue
 
-        match_result = None
         reference_variant = None
         for reference_variant in reference_variants[position_str]:
             match_result = sample_variant.match_alleles(reference_variant)
@@ -537,13 +559,18 @@ if __name__ == "__main__":
             elif action == "fill_indel":
                 new_alleles = matched_variant.alleles
                 if is_turned:
-                    new_alleles = reversed(new_alleles)
-                new_alleles = (
+                    allele_a, allele_b = new_alleles
+                    new_alleles = allele_b, allele_a
+                with_missing_alleles = tuple((
                     new if old not in frozenset(["0"]) else old
                     for old, new in zip(sample_variant.alleles, new_alleles)
-                )  # don't overwrite missing values
+                ))  # don't overwrite missing values
                 update_alleles.append(
-                    (sample_variant.id, *sample_variant.alleles, *new_alleles)
+                    (
+                        sample_variant.id,
+                        *sample_variant.alleles,
+                        *with_missing_alleles,
+                    )
                 )
 
     del reference_variants
@@ -552,10 +579,12 @@ if __name__ == "__main__":
     prefix = f"{args.bfile}.checkflip"
 
     counters_file = f"{prefix}.counters.txt"
-    counters = sorted(counters.items(), key=lambda item: item[-1])
+    counters_lines = sorted(counters.items(), key=lambda item: item[-1])
     with open(counters_file, "wt") as counters_file_handle:
         counters_file_handle.write(
-            "\n".join(f"{key}\t{value:d}" for key, value in counters) + "\n"
+            "\n".join(
+                f"{key}\t{value:d}" for key, value in counters_lines
+            ) + "\n"
         )
 
     exclude_file = f"{prefix}.snp.exclude.txt"
