@@ -185,9 +185,8 @@ enigma-mds --bfile ../raw/my_sample_b
 <li>
 <p>
 Next, go to <code>/data/qc</code>, and run <code>enigma-qc</code> for your 
-<code>.bed</code> file sets. This will drop any strand ambiguous SNPs and
-screen for low MAF, missingness and HWE, then remove duplicate SNPs if
-necessary, and finally convert the data to sorted <code>.vcf.gz</code>
+<code>.bed</code> file sets. This will drop any strand ambiguous SNPs, then screen for low MAF, missingness and HWE, then remove duplicate SNPs (if
+necessary), and finally convert the data to sorted <code>.vcf.gz</code>
 format for imputation.
 </p>
 <p>
