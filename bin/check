@@ -1,0 +1,831 @@
+#!/usr/bin/env python3
+# pylint: max-line-length=90
+
+from __future__ import annotations
+from abc import ABC, abstractmethod
+from typing import Optional, Literal, Union
+
+from dataclasses import dataclass, field
+from collections import defaultdict
+
+import re
+from argparse import ArgumentParser
+import logging
+
+from glob import glob
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import gzip
+
+from subprocess import call
+from multiprocessing.dummy import Pool
+
+from math import isclose
+
+logger = logging.getLogger("check")
+
+Chromosome = Union[int, Literal["X"]]
+chromosome_regex = re.compile(r"chr(?P<chromosome>\d+|X|Y)")
+
+chain_file_regex = re.compile(r"(?P<version>hg\d+)ToHg19.over.chain.gz")
+
+
+def verbose_call(command: list[str]):
+    logger.info(f"Running command line {command}")
+    call(command)
+
+
+def parse_chromosome(chromosome_str: str) -> Optional[Chromosome]:
+    if chromosome_str == "X":
+        chromosome: Chromosome = "X"
+    elif chromosome_str.isdigit():
+        chromosome = int(chromosome_str)
+
+        if chromosome == 23:
+            chromosome = "X"
+        elif chromosome > 23:
+            return None
+    else:
+        return None
+
+    return chromosome
+
+
+@dataclass
+class MatchResult:
+    variant: Optional[Variant] = None
+    messages: list[str] = field(default_factory=list)
+
+
+@dataclass
+class Variant:
+    id: str
+
+    chromosome: Chromosome
+    position: int
+
+    allele_a: str
+    allele_b: str
+
+    actions: list[str] = field(default_factory=list)
+
+    def copy(self):
+        return Variant(
+            id=self.id,
+            chromosome=self.chromosome,
+            position=self.position,
+            allele_a=self.allele_a,
+            allele_b=self.allele_b,
+            actions=[*self.actions],
+        )
+
+    @property
+    def chromosome_number(self) -> int:
+        if self.chromosome == "X":
+            return 23
+        else:
+            return self.chromosome
+
+    @property
+    def range(self) -> tuple[int, int]:
+        return (self.position - len(self.allele_a), self.position)
+
+    @property
+    def alleles(self) -> tuple[str, str]:
+        return (self.allele_a, self.allele_b)
+
+    @property
+    def genotype(self) -> frozenset:
+        return frozenset([self.allele_a, self.allele_b])
+
+    @property
+    def is_indel(self) -> bool:
+        if len(self.allele_a) != len(self.allele_b):
+            return True
+        else:
+            return self.genotype.issubset(["I", "D", "0"])
+
+    @property
+    def is_ambiguous(self) -> bool:
+        return self.genotype in frozenset(
+            [
+                frozenset(["A", "T"]),
+                frozenset(["C", "G"]),
+            ]
+        )
+
+    def flip(self) -> Optional[Variant]:
+        flip_dict = {
+            "A": "T",
+            "C": "G",
+            "T": "A",
+            "G": "C",
+            "0": "0",
+        }
+
+        if self.allele_a not in flip_dict or self.allele_b not in flip_dict:
+            return None
+
+        flipped = self.copy()
+
+        flipped.allele_a = flip_dict[self.allele_a]
+        flipped.allele_b = flip_dict[self.allele_b]
+
+        flipped.actions.append("flip")
+
+        return flipped
+
+    def turn(self) -> Variant:
+        turned = self.copy()
+
+        turned.allele_a = self.allele_b
+        turned.allele_b = self.allele_a
+
+        turned.actions.append("turn")
+
+        return turned
+
+    def equals_alleles(self, other: Variant) -> bool:
+        return self.alleles == other.alleles
+
+    def match_alleles(self, other: Variant) -> MatchResult:
+        assert self.chromosome == other.chromosome
+        assert self.position == other.position
+
+        if self.is_ambiguous:
+            return self.match_alleles_ambiguous(other)
+
+        if self.is_indel:
+            if not other.is_indel:
+                return MatchResult(messages=[("indel_mismatch")])
+
+            if self.genotype.issubset(frozenset(["I", "D", "0"])):
+                return self.match_alleles_indel(other)
+
+        messages = []
+
+        if "0" in self.genotype:
+            return self.match_alleles_incomplete(other)
+
+        if self.equals_alleles(other):
+            return MatchResult(variant=self)
+
+        messages.append("allele_mismatch")
+
+        turned = self.turn()
+        if turned.equals_alleles(other):
+            return MatchResult(variant=turned)
+
+        if "flip" not in self.actions:
+            flipped = self.flip()
+            if flipped is not None:
+                return flipped.match_alleles(other)
+            messages.append("cannot_flip")
+
+        return MatchResult(messages=messages)
+
+    def match_alleles_indel(self, other: Variant) -> MatchResult:
+        filled = self.copy()
+        filled.actions.append("fill_indel")
+
+        filled.allele_a = other.allele_a
+        filled.allele_b = other.allele_b
+
+        if len(filled.allele_a) > len(filled.allele_b):
+
+            # filled.allele_a is the insertion
+
+            if self.allele_a == "I":
+                if self.allele_b == "D" or self.allele_b == "0":
+                    return MatchResult(variant=filled)
+            elif self.allele_a == "D":
+                if self.allele_b == "I" or self.allele_b == "0":
+                    return MatchResult(variant=filled.turn())
+            elif self.allele_a == "0":
+                if self.allele_b == "I":
+                    return MatchResult(variant=filled.turn())
+                elif self.allele_b == "D":
+                    return MatchResult(variant=filled)
+
+        else:
+
+            # filled.allele_b is the insertion
+
+            if self.allele_a == "I":
+                if self.allele_b == "D" or self.allele_b == "0":
+                    return MatchResult(variant=filled.turn())
+            elif self.allele_a == "D":
+                if self.allele_b == "I" or self.allele_b == "0":
+                    return MatchResult(variant=filled)
+            elif self.allele_a == "0":
+                if self.allele_b == "I":
+                    return MatchResult(variant=filled)
+                elif self.allele_b == "D":
+                    return MatchResult(variant=filled.turn())
+
+        return MatchResult(messages=["indel_mismatch"])
+
+    def match_alleles_ambiguous(self, other: Variant) -> MatchResult:
+        if self.genotype != other.genotype:
+            return MatchResult(messages=[("allele_mismatch")])
+
+        ambiguous_matched = None
+
+        if self.equals_alleles(other):
+            ambiguous_matched = self
+        else:
+            ambiguous_matched = self.flip()
+
+        assert ambiguous_matched is not None
+        return MatchResult(variant=ambiguous_matched)
+
+    def match_alleles_incomplete(self, other: Variant) -> MatchResult:
+        filled = self.copy()
+        filled.actions.append("fill")
+
+        if self.allele_a == "0" and self.allele_b == other.allele_b:
+            filled.allele_a = other.allele_a
+            return filled.match_alleles(other)
+
+        if self.allele_a == "0" and self.allele_b == other.allele_a:
+            filled.allele_a = other.allele_b
+            return filled.match_alleles(other)
+
+        if self.allele_a == other.allele_a and self.allele_b == "0":
+            filled.allele_b = other.allele_b
+            return filled.match_alleles(other)
+
+        if self.allele_a == other.allele_b and self.allele_b == "0":
+            filled.allele_b = other.allele_a
+            return filled.match_alleles(other)
+
+        if "flip" not in self.actions:
+            flipped = self.flip()
+            if flipped is None:
+                return MatchResult(messages=["cannot_flip"])
+            return flipped.match_alleles_incomplete(other)
+
+        return MatchResult(messages=["incomplete", "allele_mismatch"])
+
+
+def read_legend_file(
+    legend_file: str,
+) -> Optional[tuple[Chromosome, dict[int, list[Variant]]]]:
+    match = chromosome_regex.search(legend_file)
+
+    if match is None:
+        logger.info(
+            f'Skipping legend file "{legend_file}" '
+            "because the chromosome cannot be read from the file name"
+        )
+        return None
+
+    chromosome_str = match.group("chromosome")
+
+    chromosome = parse_chromosome(chromosome_str)
+
+    if chromosome is None:
+        logger.info(
+            f"Skipping chromosome {chromosome_str} "
+            f'legend file "{legend_file}"'
+        )
+        return None
+
+    legend_file_variants: dict[int, list[Variant]] = defaultdict(list)
+    legend_file_variant_count = 0
+
+    with gzip.open(legend_file, "rt") as legend_file_handle:
+        header = legend_file_handle.readline()
+        columns = header.split()
+
+        assert columns[0] == "id"
+        assert columns[1] == "position"
+        assert columns[2] == "a0"
+        assert columns[3] == "a1"
+
+        for line in legend_file_handle:
+            values = line.split()
+            id, position_str, allele_a, allele_b = values[:4]
+
+            variant = Variant(
+                id=id,
+                chromosome=chromosome,
+                position=int(position_str),
+                allele_a=allele_a,
+                allele_b=allele_b,
+            )
+            assert variant.position is not None
+
+            legend_file_variants[variant.position].append(variant)
+            legend_file_variant_count += 1
+
+    logger.info(
+        f"Using {legend_file_variant_count:d} variants "
+        f'for chromosome {chromosome} from legend file "{legend_file}"'
+    )
+
+    return chromosome, legend_file_variants
+
+
+def read_bim_file(bfile: str) -> list[Variant]:
+    bim_file = f"{bfile}.bim"
+    sample_variants: list[Variant] = list()
+    with open(bim_file, "rt") as bim_file_handle:
+        logger.info(f'Reading "{bim_file}"')
+
+        for line in bim_file_handle:
+            (
+                chromosome_str,
+                id,
+                _,
+                position_str,
+                allele_a,
+                allele_b,
+            ) = line.split()
+
+            # use plink 1.9 missing codes
+            if allele_a == ".":
+                allele_a = "0"
+            if allele_b == ".":
+                allele_b = "0"
+
+            chromosome = parse_chromosome(chromosome_str)
+            if chromosome is None:
+                continue
+
+            position = int(position_str)
+
+            variant = Variant(
+                id=id,
+                chromosome=chromosome,
+                position=position,
+                allele_a=allele_a,
+                allele_b=allele_b,
+            )
+
+            sample_variants.append(variant)
+
+    return sample_variants
+
+
+def write_bim_file(file: str, variants: list[Variant]):
+    with open(file, "wt") as file_handle:
+        file_handle.write(
+            "\n".join(
+                "\t".join(
+                    [
+                        str(v.chromosome_number),
+                        v.id,
+                        "0",
+                        str(v.position),
+                        *v.alleles,
+                    ]
+                )
+                for v in variants
+            )
+            + "\n"
+        )
+
+
+class CommandBase(ABC):
+    def __init__(self, sample_variants: list[Variant], *args) -> None:
+        self.sample_variants = sample_variants
+        args
+
+    @abstractmethod
+    def map(
+        self,
+        chromosome: Chromosome,
+        reference_variants: dict[int, list[Variant]],
+    ):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def reduce(self, bfile: str):
+        raise NotImplementedError()
+
+
+class FlipCommand(CommandBase):
+    def __init__(self, sample_variants: list[Variant], *args) -> None:
+        super().__init__(sample_variants, *args)
+
+        self.counters: dict[str, int] = defaultdict(int)
+
+        self.exclude: list[str] = list()
+        self.flip: list[str] = list()
+        self.update_alleles: list[tuple[str, str, str, str, str]] = list()
+
+    def _on_match(self, sample_variant: Variant, matched_variant: Variant):
+        for action in matched_variant.actions:
+            if action == "turn":
+                pass  # we leave this up to the imputation step
+            elif action == "flip":
+                self.flip.append(sample_variant.id)
+            elif action == "fill":
+                pass  # we leave this up to the imputation step
+            elif action == "fill_indel":
+                new_allele_a, new_allele_b = matched_variant.alleles
+
+                # don't overwrite missing values
+                if sample_variant.allele_a in frozenset(["0"]):
+                    new_allele_a = sample_variant.allele_a
+                if sample_variant.allele_b in frozenset(["0"]):
+                    new_allele_b = sample_variant.allele_b
+
+                self.update_alleles.append(
+                    (
+                        sample_variant.id,
+                        *sample_variant.alleles,
+                        new_allele_a,
+                        new_allele_b,
+                    )
+                )
+
+    def map(
+        self,
+        chromosome: Chromosome,
+        reference_variants: dict[int, list[Variant]],
+    ):
+        for sample_variant in self.sample_variants:
+            if sample_variant.chromosome != chromosome:
+                continue
+
+            position = sample_variant.position
+
+            if (
+                position not in reference_variants
+                or len(reference_variants[position]) == 0
+            ):
+                self.exclude.append(sample_variant.id)
+                logger.debug(
+                    f"Excluding variant {sample_variant.id} "
+                    "because it could not be found in the reference"
+                )
+                self.counters["not_in_reference"] += 1
+                continue
+
+            match_result: Optional[MatchResult] = None
+            reference_variant = None
+            for reference_variant in reference_variants[position]:
+                match_result = sample_variant.match_alleles(reference_variant)
+                if match_result.variant is not None:
+                    break
+
+            assert match_result is not None
+            matched_variant = match_result.variant
+
+            if matched_variant is None or len(match_result.messages) > 0:
+                print_variant = matched_variant
+                if print_variant is None:
+                    print_variant = sample_variant
+                self.exclude.append(sample_variant.id)
+                logger.debug(
+                    f"Excluding variant \n{print_variant} because it "
+                    "could not be matched to the reference variants \n"
+                    + "\n".join(map(str, reference_variants[position]))
+                    + f" with messages {match_result.messages}"
+                )
+                for message in match_result.messages:
+                    self.counters[message] += 1
+                continue
+
+            self._on_match(sample_variant, matched_variant)
+
+    def reduce(self, bfile: str):
+        prefix = f"{bfile}.check-flip"
+
+        counters_file = f"{prefix}.counters.txt"
+        counters_lines = sorted(
+            self.counters.items(), key=lambda item: item[-1]
+        )
+        with open(counters_file, "wt") as counters_file_handle:
+            counters_file_handle.write(
+                "\n".join(f"{key}\t{value:d}" for key, value in counters_lines)
+                + "\n"
+            )
+
+        exclude_file = f"{prefix}.snp.exclude.txt"
+        with open(exclude_file, "wt") as exclude_file_handle:
+            exclude_file_handle.write("\n".join(self.exclude) + "\n")
+
+        flip_file = f"{prefix}.snp.flip.txt"
+        with open(flip_file, "wt") as flip_file_handle:
+            flip_file_handle.write("\n".join(self.flip) + "\n")
+
+        update_alleles_file = f"{prefix}.snp.update_alleles.txt"
+        with open(update_alleles_file, "wt") as ua_file_handle:
+            ua_file_handle.write(
+                "\n".join(map("\t".join, self.update_alleles)) + "\n"
+            )
+
+        # apply
+        verbose_call(
+            [
+                "plink",
+                "--update-alleles",
+                update_alleles_file,
+                "--bfile",
+                bfile,
+                "--exclude",
+                exclude_file,
+                "--flip",
+                flip_file,
+                "--out",
+                prefix,
+                "--make-bed",
+            ]
+        )
+
+
+def write_lift_over_bed_file(file: str, variants: list[Variant]):
+    with open(file, "wt") as file_handle:
+        file_handle.write(
+            "\n".join(
+                "\t".join(
+                    [
+                        f"chr{v.chromosome}",
+                        *map(str, v.range),
+                        v.id,
+                        *v.alleles,
+                    ]
+                )
+                for v in variants
+            )
+            + "\n"
+        )
+
+
+def read_lift_over_bed_file(file: str):
+    with open(file, "rt") as file_handle:
+        for line in file_handle:
+            (
+                chromosome_str,
+                _,
+                position_str,
+                id,
+                allele_a,
+                allele_b,
+            ) = line.split()
+
+            chromosome_match = chromosome_regex.search(chromosome_str)
+            if chromosome_match is None:
+                logger.debug(
+                    f"Could not read chromosome of lifted variant {id}"
+                )
+                continue
+
+            chromosome = parse_chromosome(chromosome_match.group("chromosome"))
+            if chromosome is None:
+                logger.warning(
+                    f"Invalid chromosome {chromosome_str} variant {id}"
+                )
+                continue
+
+            position = int(position_str)
+
+            yield Variant(
+                id=id,
+                chromosome=chromosome,
+                position=position,
+                allele_a=allele_a,
+                allele_b=allele_b,
+            )
+
+
+def lift_over(sample_file: str, chain_file: str) -> tuple[str, list[Variant]]:
+    match = chain_file_regex.search(chain_file)
+    if match is None or match.group("version") is None:
+        raise ValueError(f'Invalid chain file name "{chain_file}"')
+
+    version = match.group("version")
+
+    base_path = Path(sample_file).parent
+
+    result_file = str(base_path / f"liftover.{version}.bed")
+    unmapped_file = str(base_path / f"liftover.{version}.unmapped")
+
+    verbose_call(
+        [
+            "liftOver",
+            sample_file,
+            chain_file,
+            result_file,
+            unmapped_file,
+        ]
+    )
+
+    return version, list(read_lift_over_bed_file(result_file))
+
+
+class Hg19Command(CommandBase):
+    def __init__(
+        self, sample_variants: list[Variant], chain_files: list[str]
+    ) -> None:
+        super().__init__(sample_variants)
+
+        self.overlap_counts: dict[str, int] = defaultdict(int)
+
+        with TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            sample_file = str(tmp_path / "sample_variants.bed")
+            write_lift_over_bed_file(sample_file, sample_variants)
+            self.lifted_variants = dict(
+                lift_over(sample_file, chain_file)
+                for chain_file in chain_files
+            )
+            self.lifted_variants["hg19"] = sample_variants
+
+    def map(
+        self,
+        chromosome: Chromosome,
+        reference_variants: dict[int, list[Variant]],
+    ):
+        for version, variants in self.lifted_variants.items():
+            for variant in variants:
+                if variant.chromosome != chromosome:
+                    continue
+
+                position = variant.position
+
+                if (
+                    position not in reference_variants
+                    or len(reference_variants[position]) == 0
+                ):
+                    continue
+
+                match_result: Optional[MatchResult] = None
+                reference_variant = None
+                for reference_variant in reference_variants[position]:
+                    match_result = variant.match_alleles(reference_variant)
+                    if match_result.variant is not None:
+                        break
+
+                assert match_result is not None
+                matched_variant = match_result.variant
+
+                if matched_variant is None or len(match_result.messages) > 0:
+                    continue
+
+                self.overlap_counts[version] += 1
+
+    def reduce(self, bfile: str):
+        overlap: dict[str, float] = {
+            version: float(self.overlap_counts[version]) / float(len(variants))
+            for version, variants in self.lifted_variants.items()
+        }
+
+        prefix = f"{bfile}.hg19"
+
+        max_overlap = max(overlap.values())
+        if isclose(overlap["hg19"], max_overlap):
+            logger.info("Is already hg19")
+            verbose_call(
+                [
+                    "plink",
+                    "--bfile",
+                    bfile,
+                    "--out",
+                    prefix,
+                    "--make-bed",
+                ]
+            )
+            return
+
+        version, _ = max(overlap.items(), key=lambda t: t[1])
+
+        logger.info(
+            f'Sample is in "{version}" considering the overlap with the '
+            f"reference: {overlap}"
+        )
+
+        lifted_variant_ids = frozenset(
+            v.id for v in self.lifted_variants[version]
+        )
+        exclude = [
+            v.id
+            for v in self.sample_variants
+            if v.id not in lifted_variant_ids
+        ]
+
+        exclude_file = f"{prefix}.snp.exclude.txt"
+        with open(exclude_file, "wt") as exclude_file_handle:
+            exclude_file_handle.write("\n".join(exclude) + "\n")
+
+        new_variants = self.lifted_variants[version]
+
+        chromosomes = sorted(frozenset(
+            str(variant.chromosome_number) for variant in new_variants
+        ))
+
+        verbose_call(
+            [
+                "plink",
+                "--bfile",
+                bfile,
+                "--exclude",
+                exclude_file,
+                "--chr",
+                ",".join(chromosomes),
+                "--out",
+                prefix,
+                "--make-bed",
+            ]
+        )
+
+        old_variants = read_bim_file(prefix)
+
+        assert len(old_variants) == len(new_variants)
+        for old, new in zip(old_variants, new_variants):
+            assert old.id == new.id
+
+        bim_file = f"{prefix}.bim"
+        write_bim_file(bim_file, new_variants)
+
+
+Command = Union[Hg19Command, FlipCommand]
+
+
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    subparsers = parser.add_subparsers()
+
+    flip_subparser = subparsers.add_parser("flip")
+    flip_subparser.set_defaults(command=FlipCommand)
+    flip_subparser.add_argument("--bfile", type=str, required=True)
+    flip_subparser.add_argument(
+        "--legend-files", action="extend", nargs="+", type=str, required=False
+    )
+
+    hg19_subparser = subparsers.add_parser("hg19")
+    hg19_subparser.set_defaults(command=Hg19Command)
+    hg19_subparser.add_argument("--bfile", type=str, required=True)
+    hg19_subparser.add_argument(
+        "--legend-files", action="extend", nargs="+", type=str, required=False
+    )
+    hg19_subparser.add_argument(
+        "--chain-files", action="extend", nargs="+", type=str, required=False
+    )
+
+    parser.add_argument("--log-level", type=str, default="INFO")
+
+    args = parser.parse_args()
+
+    logging.basicConfig(level=args.log_level)
+
+    # normalize args
+
+    legend_files = args.legend_files
+    if legend_files is None or len(legend_files) == 0:
+        legend_files = glob(
+            "/data/cloudgene/apps/1000g-phase-3-v5/2.0.0/"
+            "legends/ALL_1000G_phase3_integrated_v5_chr*.legend.gz"
+        )
+        if len(legend_files) == 0:
+            raise FileNotFoundError(
+                "Could not find legend files. "
+                "Please make sure that the imputation server is installed "
+                "correctly or manually specify the legend files with the "
+                '"--legend-files" argument'
+            )
+
+    chain_files = None
+    if hasattr(args, "chain_files"):
+        chain_files = args.chain_files
+        if chain_files is None or len(chain_files) == 0:
+            chain_files = glob("/localdata/liftover/hg*ToHg19.over.chain.gz")
+            if len(chain_files) == 0:
+                raise FileNotFoundError(
+                    "Could not find liftOver chain files. "
+                    "You can manually specify the chain files with the "
+                    '"--chain-files" argument'
+                )
+
+    # read sample
+    sample_variants = read_bim_file(args.bfile)
+    sample_chromosomes = frozenset(
+        variant.chromosome for variant in sample_variants
+    )
+
+    # instantiate commands
+    command = args.command(sample_variants, chain_files)
+
+    # read reference
+    reference_chromosomes: set[Chromosome] = set()
+    with Pool() as pool:
+        for result in pool.imap_unordered(read_legend_file, legend_files):
+            if result is None:
+                continue
+
+            chromosome, reference_variants = result
+            reference_chromosomes.add(chromosome)
+
+            command.map(chromosome, reference_variants)
+
+    if not sample_chromosomes.issubset(reference_chromosomes):
+        missing_chromosomes = sample_chromosomes - reference_chromosomes
+        logger.warning(
+            "Missing reference data for sample chromosomes "
+            f"{missing_chromosomes}. "
+        )
+
+    command.reduce(args.bfile)
