@@ -181,7 +181,7 @@ enigma-qc --bfile ../raw/my_sample --study-name my_sample
 
 <li>
 <p>
-Finally, run the <code>imputationserver</code> command for the correct sample population (usually <code>mixed</code>). Note that the population is only used to exclude variants during the <a href="https://imputationserver.readthedocs.io/en/latest/pipeline/#quality-control">quality control step</a>, where for each variant the minor allele frequency in the population reference is compared to the sample using a chi-squared test. For the imputation step, the imputation server always uses the entire <a
+Finally, run the <code>imputationserver</code> command for the correct sample population (usually <code>mixed</code>). Note that the <a href="https://github.com/genepi/imputationserver/blob/82ecc89888ccb0b45db368e131f34582aa6d6c21/pages/help.stache#L123">population is only used to exclude variants during the quality control step</a>, where for each variant the minor allele frequency in the population reference is <a href="https://imputationserver.readthedocs.io/en/latest/pipeline/#quality-control">compared to the sample using a chi-squared test</a>. For the imputation step, the imputation server always uses the entire <a
 href="https://imputationserver.readthedocs.io/en/latest/reference-panels/#1000-genomes-phase-3-version-5">1000 Genomes Phase 3 v5</a> genome reference.
 </p>
 
