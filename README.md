@@ -181,9 +181,9 @@ enigma-qc --bfile ../raw/my_sample --study-name my_sample
 
 <li>
 <p>
-Finally, run the <code>imputationserver</code> command for the correct <a href="https://github.com/genepi/imputationserver/blob/v1.5.8/docs/getting-started.md#population">sample population</a>. This parameter can be set to `mixed` if the sample has multiple populations or the population is unknown. 
+Finally, run the <code>imputationserver</code> command for the correct <a href="https://github.com/genepi/imputationserver/blob/v1.5.8/docs/getting-started.md#population">sample population</a>. This parameter can be set to <code>mixed</code> if the sample has multiple populations or the population is unknown. 
 <p>
-If a specific population (not `mixed`) is specified, then the imputation server will compare <a href="https://imputationserver.readthedocs.io/en/latest/pipeline/#quality-control">the minor allele frequency of each variant in the sample to the population reference using a chi-squared test</a>, and excludes outliers. If the population is `mixed`, then the step is skipped.
+If a specific population (not <code>mixed</code>) is specified, then the imputation server will compare <a href="https://imputationserver.readthedocs.io/en/latest/pipeline/#quality-control">the minor allele frequency of each variant in the sample to the population reference using a chi-squared test</a>, and excludes outliers. If the population is <code>mixed</code>, then the step is skipped.
 </p>
 <p>
 Regardless of the population paramater, the imputation step always uses the entire <a
