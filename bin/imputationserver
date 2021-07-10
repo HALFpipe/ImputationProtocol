@@ -71,8 +71,8 @@ run_cmd mkdir -p -v /data/output/${STUDY_NAME}
 
 run_cmd cloudgene run imputationserver \
     --conf ${HADOOP_CONF_DIR} \
-    --refpanel 1000g-phase-3-v5 \
+    --refpanel "1000g-phase-3-v5" \
     --population ${POPULATION} \
-    --files /data/input/${STUDY_NAME} \
-    --output /data/output/${STUDY_NAME} \
+    --files "/data/input/${STUDY_NAME}" \
+    --output "/data/output/${STUDY_NAME}" \
     --user ${USER} ${EXTRA_FLAGS}

@@ -1,1 +1,67 @@
 #!/usr/bin/env bash
+
+OPTS=`getopt -o s:p: --long study-name: -n 'make-archive' -- "$@"`
+eval set -- "$OPTS"
+
+VERBOSE=1
+
+while true ; do
+    case "$1" in
+        -s|--study-name)
+            case "$2" in
+                "") shift 2 ;;
+                *) STUDY_NAME=$2 ; shift 2 ;;
+            esac ;;
+        --) shift ; break ;;
+        *) echo "Internal error!" ; exit 1 ;;
+    esac
+done
+
+fail() {
+    printf '%s\n' "$1" >&2
+    exit "${2-1}"
+}
+
+if [[ ! -v STUDY_NAME ]]; then
+    fail "Missing required --study-name parameter"
+fi
+
+run_cmd() {
+    cmd="$*"
+
+    printf '%s\n' --------------------
+
+    if [ "$VERBOSE" = "1" ]; then
+	printf "$cmd\n"
+    fi
+
+    ( "$@" )
+
+    EXIT_CODE=$?
+
+    if [[ $EXIT_CODE -gt 0 ]]; then
+	echo "ERROR: command exited with nonzero status $EXIT_CODE"
+    fi
+
+    printf '%s\n' --------------------
+
+    return $EXIT_CODE
+}
+
+ARCHIVE=/data/${STUDY_NAME}.zip
+
+add_files() {
+    if [[ $# -eq 0 ]] ; then
+        return
+    fi
+    run_cmd 7za a ${ARCHIVE} $@
+}
+
+add_files $(find /data/output/${STUDY_NAME}/{qcreport,statisticDir}/* 2>/dev/null)
+
+for chr_file in $(find /data/output/${STUDY_NAME}/local/*.zip 2>/dev/null); do
+    tmp_dir=$(mktemp -d)
+    run_cmd 7za -aoa -o${tmp_dir} -ppassword x ${chr_file}
+    add_files ${tmp_dir}/*
+    rm -rf ${tmp_dir}
+done
