@@ -33,7 +33,8 @@ RUN conda config --add channels bioconda && \
     conda install -y \
         "python>=3.9" \
         "perl-vcftools-vcf>=0.1.16" \
-        "p7zip>=15.09" && \
+        "p7zip>=15.09" \
+        "tabix>=1.11" && \
     sync && \
     chmod -R a+rX /usr/local/miniconda && \
     sync && \
