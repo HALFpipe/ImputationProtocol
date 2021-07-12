@@ -198,10 +198,33 @@ imputationserver --study-name my_sample --population mixed
 This process will likely take a few hours, and once it finishes for all your <code>.bed</code> file sets, you can exit the container using the <code>exit</code> command.
 </p>
 <p>
-All outputs can be found in the working directory created earlier. The quality control report can be found at <code>${working_directory}/output/my_sample/qcreport/qcreport.html</code>, and the imputation results at <code>${working_directory}/output/my_sample/local</code>. The <code>.zip</code> files are encrypted with the password <code>password</code>.
+All outputs can be found in the working directory created earlier. The quality control report can be found at <code>${working_directory}/output/my_sample/qcreport/qcreport.html</code> (only if the population is not <code>mixed</code>), and the imputation results at <code>${working_directory}/output/my_sample/local</code>. The <code>.zip</code> files are encrypted with the password <code>password</code>.
 </p>
 </li>
+  
+<li>
+<p>
+To merge all output files into a compact and portable <code>.zip</code> archive, the container includes the <code>make-archive</code> command. It will create a single output file at <code>${working_directory}/my_sample.zip</code> with all output files.
+</p>
+  
+```bash
+make-archive --study-name my_sample
+```
+</li>
 
+<li>
+<p>
+Once you have finished processing all your datasets, you can stop all background processes of the imputation server with the <code>stop-hadoop</code> command. Then you can exit the container, move the output files to a safe location and delete the working directory (in case you need the disk space).
+</p>
+  
+```bash
+stop-hadoop
+exit
+mv ${working_directory}/my_sample.zip /storage
+rm -rI ${working_directory}
+```
+</li>
+  
 </ol>
 
 ## Troubleshooting
