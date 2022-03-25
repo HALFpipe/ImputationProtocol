@@ -4,7 +4,7 @@
 
 > This project is currently at an experimental stage and has not been validated by an experienced geneticist. Please use at your own risk.
 
-With the advent of stricter data privacy laws in many jurisdictions, it has become impossible for some researchers to use the [Michigan Imputation Server](https://imputationserver.readthedocs.io/en/latest/) to phase and impute genotype data. This project allows you to use the open source code behind the server with the [1000 Genomes Phase 3 v5](https://imputationserver.readthedocs.io/en/latest/reference-panels/#1000-genomes-phase-3-version-5) reference, and the rest of the [ENIGMA Imputation Protocol](https://enigma.ini.usc.edu/wp-content/uploads/2020/02/ENIGMA-1KGP_p3v5-Cookbook_20170713.pdf), on your local workstation or high-performance compute cluster.
+With the advent of stricter data privacy laws in many jurisdictions, it has become impossible for some researchers to use the [Michigan Imputation Server](https://imputationserver.readthedocs.io/en/latest/) to phase and impute genotype data. This project allows you to use the open source code behind the server on your local workstation or high-performance compute cluster, together with the [1000 Genomes Phase 3 v5](https://imputationserver.readthedocs.io/en/latest/reference-panels/#1000-genomes-phase-3-version-5) reference, and the rest of the [ENIGMA Imputation Protocol](https://enigma.ini.usc.edu/wp-content/uploads/2020/02/ENIGMA-1KGP_p3v5-Cookbook_20170713.pdf), .
 
 ## System requirements
 
