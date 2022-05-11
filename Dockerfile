@@ -52,5 +52,3 @@ COPY cloudgene-override/* /opt/cloudgene/
 COPY bin/* /usr/local/bin/
 
 CMD ["/bin/bash"]
-
-LABEL org.opencontainers.image.source="https://github.com/HippocampusGirl/ImputationProtocol"
