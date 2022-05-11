@@ -1,4 +1,4 @@
-# ENIGMA Imputation Protocol (as a container)
+# Imputation Protocol (as a container)
 
 [![build](https://github.com/HippocampusGirl/ENIGMAImputationProtocol/actions/workflows/build.yml/badge.svg)](https://github.com/HippocampusGirl/ENIGMAImputationProtocol/actions/workflows/build.yml)
 
