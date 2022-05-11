@@ -11,7 +11,7 @@ RUN mkdir -p -v /localdata/mds && \
 RUN mkdir -p -v /localdata/liftover && \
     for genome_reference in hg16 hg17 hg18 hg38; do \
         file_name="${genome_reference}ToHg19.over.chain.gz"; \
-        wget --progress=dot:mega -O /localdata/liftover/${file_name} "http://hgdownload.soe.ucsc.edu/goldenPath/${genome_reference}/liftOver/${file_name}"; \
+        wget --progress=dot:mega -O /localdata/liftover/${file_name} "https://hgdownload.soe.ucsc.edu/goldenPath/${genome_reference}/liftOver/${file_name}"; \
     done
 
 # install software
@@ -23,7 +23,7 @@ RUN wget --progress=dot:mega -O /tmp/plink_linux.zip "https://s3.amazonaws.com/p
     bash /tmp/miniconda.sh -b -p /usr/local/miniconda && \
     wget --progress=dot:mega -O /tmp/calibrate.tar.gz "https://cran.r-project.org/src/contrib/Archive/calibrate/calibrate_1.7.2.tar.gz" && \
     R CMD INSTALL /tmp/calibrate.tar.gz && \
-    wget --progress=dot:mega -O /usr/local/bin/liftOver "http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/liftOver" && \
+    wget --progress=dot:mega -O /usr/local/bin/liftOver "https://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/liftOver" && \
     rm -rf /tmp/*; sync
 
 ENV PATH="/usr/local/miniconda/bin:$PATH" \
