@@ -34,17 +34,17 @@ You need to download the container file using one of the following commands. Thi
   <tr>
     <td>Singularity</td>
     <td>3.x</td>
-    <td><code>wget <a href="http://download.gwas.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.sif">http://download.gwas.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.sif</code></a></td>
+    <td><code>wget <a href="http://download.gwas.science/singularity/hippocampusgirl-imputation-protocol-latest.sif">http://download.gwas.science/singularity/hippocampusgirl-imputation-protocol-latest.sif</code></a></td>
   </tr>
   <tr>
     <td>Singularity</td>
     <td>2.x</td>
-    <td><code>wget <a href="http://download.gwas.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.simg">http://download.gwas.science/singularity/hippocampusgirl-enigma-imputation-protocol-latest.simg</code></a></td>
+    <td><code>wget <a href="http://download.gwas.science/singularity/hippocampusgirl-imputation-protocol-latest.simg">http://download.gwas.science/singularity/hippocampusgirl-imputation-protocol-latest.simg</code></a></td>
   </tr>
   <tr>
     <td>Docker</td>
     <td></td>
-    <td><code>docker pull hippocampusgirl/enigma-imputation-protocol:latest</code></td>
+    <td><code>docker pull hippocampusgirl/imputation-protocol:latest</code></td>
   </tr>
 </tbody>
 </table>
