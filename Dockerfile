@@ -3,7 +3,9 @@ FROM genepi/imputationserver:v1.5.7
 # download data
 RUN mkdir -p -v /localdata/mds && \
     for file_name in HM3_b37.bed HM3_b37.bim HM3_b37.fam; do \
-        wget --progress=dot:giga -O - "http://genepi.qimr.edu.au/staff/sarahMe/enigma/MDS/${file_name}.gz" | gunzip > /localdata/mds/${file_name}; \
+        wget \
+            --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:102.0) Gecko/20100101 Firefox/102.0" \
+            --progress=dot:giga -O - "https://genepi.qimr.edu.au/staff/sarahMe/enigma/MDS/${file_name}.gz" | gunzip > /localdata/mds/${file_name}; \
     done
 
 RUN mkdir -p -v /localdata/liftover && \
