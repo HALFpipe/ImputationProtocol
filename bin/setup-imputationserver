@@ -34,8 +34,8 @@ export HADOOP_CONF_DIR=/data/hadoop/config
 
 run_cmd cloudgene verify-cluster
 
-run_cmd wget --continue -O /data/downloads/imputationserver.zip "https://github.com/genepi/imputationserver/releases/download/v1.5.7/imputationserver.zip"
-run_cmd wget --continue -O /data/downloads/1000genomes-phase3.zip "https://imputationserver.sph.umich.edu/static/downloads/releases/1000genomes-phase3-2.0.0.zip"
+run_cmd wget --continue -O /data/downloads/imputationserver.zip "https://github.com/genepi/imputationserver/releases/download/v1.6.8/imputationserver.zip"
+run_cmd wget --continue -O /data/downloads/1000genomes-phase3.zip "https://imputationserver.sph.umich.edu/static/downloads/releases/1000genomes-phase3-3.0.0.zip"
 
 run_cmd cloudgene install /data/downloads/imputationserver.zip
 run_cmd cloudgene install /data/downloads/1000genomes-phase3.zip
