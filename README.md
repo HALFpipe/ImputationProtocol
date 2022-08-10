@@ -289,3 +289,17 @@ You likely have bad permissions in your working directory. You can either try to
 > Warning: At least one VCF allele code violates the official specification; other tools may not accept the file. (Valid codes must either start with a '<', only contain characters in {A,C,G,T,N,a,c,g,t,n}, be an isolated '\*', or represent a breakend.)
 
 This message occurs for example when you have indels in your raw data. You can ignore this message, because the [Michigan Imputation Server](https://imputationserver.readthedocs.io/en/latest/) will remove these invalid variants in its quality control step.
+
+### The commands are stuck, for example at `Init HadoopUtil null`
+
+This suggests that your Hadoop instance may not be accepting new jobs. The fastest way to solve this is to stop and delete the instance, and then to re-run the setup.
+
+```bash
+# stop and delete
+stop-hadoop
+rm -rf /data/hadoop
+
+# re-run setup
+setup-hadoop --n-cores 8
+setup-imputationserver
+```
