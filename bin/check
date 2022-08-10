@@ -776,7 +776,7 @@ if __name__ == "__main__":
     legend_files = args.legend_files
     if legend_files is None or len(legend_files) == 0:
         legend_files = glob(
-            "/data/cloudgene/apps/1000g-phase-3-v5/2.0.0/"
+            "/data/cloudgene/apps/1000g-phase-3-v5/*/"
             "legends/ALL_1000G_phase3_integrated_v5_chr*.legend.gz"
         )
         if len(legend_files) == 0:
