@@ -80,7 +80,7 @@ if [[ $(wc -l <lastQCb37.dupvar) -ge 1 ]]; then
     LASTQC="lastQCb37_noduplicates"
 fi
 
-for CHR in {1..22}; do
+for CHR in {1..22} X; do
     run_cmd plink2 --bfile "${LASTQC}" --chr "${CHR}" --recode "vcf" --out "${STUDY_NAME}_chr${CHR}"
     run_cmd "vcf-sort ${STUDY_NAME}_chr${CHR}.vcf | bgzip -c > ${VCF_DIRECTORY}/chr${CHR}.vcf.gz"
 done
