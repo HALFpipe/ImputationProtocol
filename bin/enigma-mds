@@ -33,7 +33,7 @@ run_cmd() {
     printf '%s\n' --------------------
 
     if [ "$VERBOSE" = "1" ]; then
-	printf "$cmd\n"
+	echo "$cmd"
     fi
 
     eval "$@"
@@ -53,33 +53,41 @@ run_cmd() {
 
 REFERENCE="/localdata/mds/HM3_b37"
 
-BFILE_FILTERED="$(basename ${BFILE}).filtered"
+run_cmd plink --bfile "${BFILE}" --make-bed --out "sorted"
 
-run_cmd plink --bfile "${BFILE}" --hwe "1e-6" --geno "0.05" --maf "0.01" --noweb --make-bed --out ${BFILE_FILTERED}
+run_cmd plink2 --bfile "sorted" --hwe "1e-6" --geno "0.05" --maf "0.01" --make-bed --out "filtered"
 
-run_cmd "awk '{print \$2}' ${REFERENCE}.bim > HM3_b37.snplist.txt"
+run_cmd "awk '{print \$2}' ${REFERENCE}.bim > external.snplist.txt"
 
-run_cmd plink --bfile "${BFILE_FILTERED}" --extract HM3_b37.snplist.txt --make-bed --noweb --out "local"
+run_cmd plink --bfile "filtered" --extract "external.snplist.txt" --make-bed --noweb --out "local"
 
-run_cmd "awk '{ \
-if ((\$5==\"T\" && \$6==\"A\") || (\$5==\"A\" && \$6==\"T\") || (\$5==\"C\" && \$6==\"G\") || (\$5==\"G\" && \$6==\"C\")) \
-print \$2, \"ambig\"; \
-else print \$2; \
-}' ${BFILE_FILTERED}.bim | grep -v ambig > local.snplist.txt"
+run_cmd "sed 's/\\r\$//' \"filtered.bim\" | \
+    awk '! ((\$5 == \"A\" && \$6 == \"T\") || \
+          (\$5 == \"T\" && \$6 == \"A\") || \
+          (\$5 == \"G\" && \$6 == \"C\") || \
+          (\$5 == \"C\" && \$6 == \"G\")) { print \$2 }' > local.snplist.txt"
 
-run_cmd plink --bfile "${REFERENCE}" --extract "local.snplist.txt" --make-bed --noweb --out "external"
+run_cmd plink --bfile "${REFERENCE}" --extract "local.snplist.txt" --make-bed --out "external"
 
-run_cmd plink --bfile "local" --bmerge "external.bed" "external.bim" "external.fam" --make-bed --noweb --out "HM3_b37merge"
+run_cmd plink --bfile "local" --bmerge "external.bed" "external.bim" "external.fam" --make-bed --noweb --out "merge"
 
-if [ -f "HM3_b37merge-merge.missnp" ]; then
+if [ -f "merge-merge.missnp" ]; then
 
-    run_cmd plink --bfile "local" --flip "HM3_b37merge-merge.missnp" --make-bed --noweb --out "flipped"
+    run_cmd plink --bfile "local" --flip "merge-merge.missnp" --make-bed --noweb --out "flipped"
+    run_cmd mv "merge-merge.missnp" "merge-merge.flipped.missnp"
 
-    run_cmd plink --bfile "flipped" --bmerge "external.bed" "external.bim" "external.fam" --make-bed --noweb --out "HM3_b37merge"
+    run_cmd plink --bfile "flipped" --bmerge "external.bed" "external.bim" "external.fam" --make-bed --noweb --out "merge"
+fi
+
+if [ -f "merge-merge.missnp" ]; then
+
+    run_cmd plink --bfile "flipped" --exclude "merge-merge.missnp" --make-bed --noweb --out "no-missnp"
+
+    run_cmd plink --bfile "no-missnp" --bmerge "external.bed" "external.bim" "external.fam" --make-bed --noweb --out "merge"
 
 fi
 
-run_cmd plink --bfile "HM3_b37merge" --cluster --mind "0.05" --mds-plot "4" --extract "local.snplist.txt" --noweb --out "HM3_b37mds"
+run_cmd plink --bfile "merge" --cluster --mind "0.05" --mds-plot "4" --extract "local.snplist.txt" --noweb --out "HM3_b37mds"
 
 run_cmd "awk 'BEGIN{OFS=\",\"}; {print \$1, \$2, \$3, \$4, \$5, \$6, \$7}' HM3_b37mds.mds >> HM3_b37mds2R.mds.csv"
 
