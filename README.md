@@ -264,7 +264,7 @@ This error happens when your input data uses a different genome reference from w
 check hg19 --bfile ../raw/my_sample 
 ```
 
-The command will create a `.bed` file set at `../raw/my_sample.hg19` which will have all strand flips resolved. You should now use this corrected file to re-run the `enigma-qc` script, and then retry running the `imputationserver` command. 
+The command will create a `.bed` file set at `../raw/my_sample.hg19` which will have the correct genome reference. You should now use this corrected file to re-run the `enigma-qc` script, and then retry running the `imputationserver` command. 
 
 ### Strand flips
 
