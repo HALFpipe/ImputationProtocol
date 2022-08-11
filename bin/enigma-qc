@@ -62,25 +62,37 @@ run_cmd() {
 VCF_DIRECTORY=/data/input/${STUDY_NAME}
 run_cmd mkdir -p -v ${VCF_DIRECTORY}
 
-run_cmd "awk '{ \
-if ((\$5==\"T\" && \$6==\"A\") || (\$5==\"A\" && \$6==\"T\") || (\$5==\"C\" && \$6==\"G\") || (\$5==\"G\" && \$6==\"C\")) \
-print \$2, \"ambig\"; \
-else print \$2; \
-}' ${BFILE}.bim | grep ambig | awk '{print \$1}' > ambig.list"
+run_cmd "sed 's/\r$//' ${BFILE}.bim | \
+    awk '((\$5 == \"A\" && \$6 == \"T\") || \
+          (\$5 == \"T\" && \$6 == \"A\") || \
+          (\$5 == \"G\" && \$6 == \"C\") || \
+          (\$5 == \"C\" && \$6 == \"G\")) { print \$2 }' > ambiguous"
 
-run_cmd plink --bfile ${BFILE} --exclude "ambig.list" --make-founders --out "lastQC" --maf 0.01 --hwe 0.000001 --make-bed --noweb
+LASTQC="lastQC"
+run_cmd plink2 --bfile ${BFILE} \
+    --nonfounders \
+    --out "${LASTQC}" \
+    --exclude "ambiguous" \
+    --maf 0.01 \
+    --hwe 0.000001 \
+    --make-bed \
 
-run_cmd "awk '{print \$2, \$1\":\"\$4}' lastQC.bim > updateSNPs.txt"
-
-run_cmd plink --bfile "lastQC" --update-name "updateSNPs.txt" --make-bed --out "lastQCb37" --noweb --list-duplicate-vars
-LASTQC="lastQCb37"
-
-if [[ $(wc -l <lastQCb37.dupvar) -ge 1 ]]; then
-    run_cmd plink2 --bfile "lastQCb37" --rm-dup "exclude-mismatch" --out "lastQCb37_noduplicates" --make-bed
-    LASTQC="lastQCb37_noduplicates"
-fi
+GENOME="b37"
+run_cmd plink2 --bfile "${LASTQC}" \
+    --nonfounders \
+    --out "${LASTQC}${GENOME}" \
+    --set-all-var-ids "@:#" \
+    --rm-dup "exclude-mismatch" \
+    --split-par "${GENOME}" \
+    --set-hh-missing \
+    --make-bed
+LASTQC="${LASTQC}${GENOME}"
 
 for CHR in {1..22} X; do
-    run_cmd plink2 --bfile "${LASTQC}" --chr "${CHR}" --export "vcf-4.2" --out "${STUDY_NAME}_chr${CHR}"
-    run_cmd "vcf-sort ${STUDY_NAME}_chr${CHR}.vcf | bgzip -c > ${VCF_DIRECTORY}/chr${CHR}.vcf.gz"
+    run_cmd plink2 --bfile "${LASTQC}" \
+        --nonfounders \
+        --out "chr${CHR}" \
+        --chr "${CHR}" \
+        --export "vcf-4.2" "bgz" 
+    run_cmd "vcf-sort chr${CHR}.vcf | bgzip -c > ${VCF_DIRECTORY}/chr${CHR}.vcf.gz"
 done
