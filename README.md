@@ -93,12 +93,12 @@ Next, start an interactive shell inside the container using one of the following
 <tbody>
   <tr>
     <td>Singularity</td>
-    <td><code>singularity shell --hostname localhost --bind ${working_directory}:/data hippocampusgirl-enigma-imputation-protocol-latest.sif</code></td>
+    <td><code>singularity shell --hostname localhost --bind ${working_directory}:/data hippocampusgirl-imputation-protocol-latest.sif</code></td>
   </tr>
   <tr>
     <td>Docker</td>
     <td>
-        <code>docker run --interactive --tty --volume ${working_directory}:/data hippocampusgirl/enigma-imputation-protocol /bin/bash</code>
+        <code>docker run --interactive --tty --volume ${working_directory}:/data hippocampusgirl/imputation-protocol /bin/bash</code>
     </td>
   </tr>
 </tbody>
