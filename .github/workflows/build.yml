@@ -70,8 +70,8 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64
-          cache-from: type=registry,ref=${{ steps.build_tag.outputs.repo }}:latest
-          cache-to: type=inline
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ${{ steps.build_tag.outputs.tag }}
             ghcr.io/${{ steps.build_tag.outputs.tag }}
