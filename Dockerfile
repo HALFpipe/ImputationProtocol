@@ -32,7 +32,7 @@ ENV PATH="/usr/local/miniconda/bin:$PATH" \
     LC_ALL="C.UTF-8"
 
 RUN conda config --add channels bioconda && \
-    conda install -y \
+    conda install --yes \
         "python>=3.10" \
         "perl-vcftools-vcf>=0.1.16" \
         "p7zip>=15.09" \
@@ -42,7 +42,7 @@ RUN conda config --add channels bioconda && \
     sync && \
     chmod +x /usr/local/bin/* /usr/local/miniconda/bin/* && \
     sync && \
-    conda clean -y --all && \
+    conda clean --yes --all && \
     sync && \
     rm -rf ~/.conda ~/.cache/pip/* && \
     sync
