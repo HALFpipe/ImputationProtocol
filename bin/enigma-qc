@@ -3,19 +3,19 @@
 OPTS=`getopt -o s:b: --long study-name:,bfile: -n 'enigma-qc' -- "$@"`
 eval set -- "$OPTS"
 
-VERBOSE=1
+verbose=1
 
 while true ; do
     case "$1" in
         -b|--bfile)
             case "$2" in
                 "") shift 2 ;;
-                *) BFILE=$2 ; shift 2 ;;
+                *) bfile=$2 ; shift 2 ;;
             esac ;;
         -s|--study-name)
             case "$2" in
                 "") shift 2 ;;
-                *) STUDY_NAME=$2 ; shift 2 ;;
+                *) study_name=$2 ; shift 2 ;;
             esac ;;
         --) shift ; break ;;
         *) echo "Internal error!" ; exit 1 ;;
@@ -27,11 +27,11 @@ fail() {
     exit "${2-1}"  
 }
 
-if [[ ! -v STUDY_NAME ]]; then
+if [[ ! -v study_name ]]; then
     fail "missing required --study-name parameter"
 fi
 
-if [[ ! -v BFILE ]]; then
+if [[ ! -v bfile ]]; then
     fail "Missing required --bfile parameter"
 fi
 
@@ -40,59 +40,63 @@ run_cmd() {
 
     printf '%s\n' --------------------
 
-    if [ "$VERBOSE" = "1" ]; then
+    if [ "${verbose}" = "1" ]; then
 	printf "$cmd\n"
     fi
 
     eval "$@"
 
-    EXIT_CODE=$?
+    exit_code=$?
 
-    if [[ $EXIT_CODE -gt 0 ]]; then
-	echo "ERROR: command exited with nonzero status $EXIT_CODE"
+    if [[ ${exit_code} -gt 0 ]]; then
+	echo "ERROR: command exited with nonzero status ${exit_code}"
     fi
 
     printf '%s\n' --------------------
 
-    return $EXIT_CODE
+    return ${exit_code}
 }
 
 # code starts here
 
-VCF_DIRECTORY=/data/input/${STUDY_NAME}
-run_cmd mkdir -p -v ${VCF_DIRECTORY}
+vcf_directory=/data/input/${study_name}
+run_cmd mkdir -p -v ${vcf_directory}
 
-run_cmd "sed 's/\r$//' ${BFILE}.bim | \
+run_cmd "sed 's/\r$//' ${bfile}.bim | \
     awk '((\$5 == \"A\" && \$6 == \"T\") || \
           (\$5 == \"T\" && \$6 == \"A\") || \
           (\$5 == \"G\" && \$6 == \"C\") || \
           (\$5 == \"C\" && \$6 == \"G\")) { print \$2 }' > ambiguous"
 
-LASTQC="lastQC"
-run_cmd plink2 --bfile ${BFILE} \
+out="lastQC"
+run_cmd plink2 --bfile ${bfile} \
     --nonfounders \
-    --out "${LASTQC}" \
+    --out "${out}" \
     --exclude "ambiguous" \
     --maf 0.01 \
     --hwe 0.000001 \
-    --make-bed \
+    --geno 0.5 \
+    --mind 0.5 \
+    --make-bed
+bfile="${out}"
 
-GENOME="b37"
-run_cmd plink2 --bfile "${LASTQC}" \
+genome="b37"
+out="${bfile}${genome}"
+run_cmd plink2 --bfile "${bfile}" \
     --nonfounders \
-    --out "${LASTQC}${GENOME}" \
+    --out "${out}" \
     --set-all-var-ids "@:#" \
     --rm-dup "exclude-mismatch" \
-    --split-par "${GENOME}" \
+    --split-par "${genome}" \
     --set-hh-missing \
     --make-bed
-LASTQC="${LASTQC}${GENOME}"
+bfile="${out}"
 
-for CHR in {1..22} X; do
-    run_cmd plink2 --bfile "${LASTQC}" \
+for c in {1..22} X; do
+    run_cmd plink2 --bfile "${bfile}" \
         --nonfounders \
-        --out "chr${CHR}" \
-        --chr "${CHR}" \
-        --export "vcf-4.2" "bgz" 
-    run_cmd "vcf-sort chr${CHR}.vcf | bgzip -c > ${VCF_DIRECTORY}/chr${CHR}.vcf.gz"
+        --out "chr${c}" \
+        --chr "${c}" \
+        --export "vcf-4.2" 
+    run_cmd "vcf-sort chr${c}.vcf | bgzip -c > ${vcf_directory}/chr${c}.vcf.gz"
 done
