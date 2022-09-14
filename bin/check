@@ -673,6 +673,13 @@ class Hg19Command(CommandBase):
             for version, variants in self.lifted_variants.items()
         }
 
+        version, _ = max(overlap.items(), key=lambda t: t[1])
+
+        logger.info(
+            f'Sample is in "{version}" considering the overlap with the '
+            f"reference: {overlap}"
+        )
+
         prefix = f"{bfile}.hg19"
 
         max_overlap = max(overlap.values())
@@ -689,13 +696,6 @@ class Hg19Command(CommandBase):
                 ]
             )
             return
-
-        version, _ = max(overlap.items(), key=lambda t: t[1])
-
-        logger.info(
-            f'Sample is in "{version}" considering the overlap with the '
-            f"reference: {overlap}"
-        )
 
         lifted_variant_ids = frozenset(
             v.id for v in self.lifted_variants[version]
