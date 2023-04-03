@@ -210,6 +210,9 @@ imputationserver --study-name my_sample --population mixed
 ```
 
 <p>
+If you see any errors, you may need to follow one or more of the workarounds in the <a href="#troubleshooting">troubleshooting</a> section.
+</p>
+<p>
 This process will likely take a few hours, and once it finishes for all your <code>.bed</code> file sets, you can exit the container using the <code>exit</code> command.
 </p>
 <p>
