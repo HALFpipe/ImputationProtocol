@@ -118,14 +118,18 @@ The <code>setup-imputationserver</code> script will then verify that the Hadoop 
 <p>
 If you are resuming analyses in an existing working directory, and do not still have the Hadoop background processes running, then you should re-run the setup commands. If they are still running, then you can skip this step.
 </p>
-<p>
-If you encounter any warnings or messages while running these commands, you should consult with an expert to find out what they mean and if they may be important. However, processing will usually complete without issues, even if some warnings occur. If something important goes wrong, then you will see a clear error message that contains the word "error".
-</p>
 
 ```bash
 setup-hadoop --n-cores 8
 setup-imputationserver
 ```
+
+<p>
+If you encounter any warnings or messages while running these commands, you should consult with an expert to find out what they mean and if they may be important. However, processing will usually complete without issues, even if some warnings occur. 
+</p>
+<p>
+If something important goes wrong, then you will usually see a clear error message that contains the word "error". Please note that if the commands take more than an hour to run the setup, then that may also indicate that an error occurred.
+</p>
 
 </li>
 
