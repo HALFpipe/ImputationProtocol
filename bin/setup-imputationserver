@@ -1,13 +1,13 @@
 #!/bin/bash
 
-VERBOSE=1
+verbose=1
 
 run_cmd() {
     cmd="$*"
 
     printf '%s\n' --------------------
 
-    if [ "$VERBOSE" = "1" ]; then
+    if [ "$verbose" = "1" ]; then
 	printf "$cmd\n"
     fi
 
@@ -34,11 +34,18 @@ export HADOOP_CONF_DIR=/data/hadoop/config
 
 run_cmd cloudgene verify-cluster
 
-run_cmd wget --continue -O /data/downloads/imputationserver.zip "https://github.com/genepi/imputationserver/releases/download/v1.6.8/imputationserver.zip"
-run_cmd wget --continue -O /data/downloads/1000genomes-phase3.zip "https://imputationserver.sph.umich.edu/static/downloads/releases/1000genomes-phase3-3.0.0.zip"
+imputationserver_version="1.7.3"
+if [ ! -f /data/cloudgene/apps/imputationserver/${imputationserver_version}/imputationserver.jar ]; then
+    run_cmd wget --continue \
+	-O "/data/downloads/imputationserver-${imputationserver_version}.zip" \
+	"https://github.com/genepi/imputationserver/releases/download/v${imputationserver_version}/imputationserver.zip"
+    run_cmd cloudgene install /data/downloads/imputationserver-${imputationserver_version}.zip
+fi
 
-run_cmd cloudgene install /data/downloads/imputationserver.zip
-run_cmd cloudgene install /data/downloads/1000genomes-phase3.zip
+reference_version="3.0.0"
+if [ ! -f /data/cloudgene/apps/1000g-phase-3-v5/${reference_version}/imputation-1000genomes-phase3.yaml ]; then
+    run_cmd cloudgene install /localdata/imputationserver/1000genomes-phase3.zip
+fi
 
 run_cmd "sed -i \"s/value: auto/value: password/g\" /data/cloudgene/apps/imputationserver/*/*.yaml"
 
