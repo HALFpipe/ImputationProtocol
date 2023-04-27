@@ -3,9 +3,9 @@
 OPTS=`getopt -o n: --long n-cores: -n 'setup-hadoop' -- "$@"`
 eval set -- "$OPTS"
 
-VERBOSE=1
+verbose=1
 
-N_CORES=4
+N_CORES=$(nproc)
 
 while true ; do
     case "$1" in
@@ -24,7 +24,7 @@ run_cmd() {
 
     printf '%s\n' --------------------
 
-    if [ "$VERBOSE" = "1" ]; then
+    if [ "${verbose}" = "1" ]; then
 	printf "$cmd\n"
     fi
 
@@ -41,27 +41,68 @@ run_cmd() {
     return $EXIT_CODE
 }
 
-# code starts here
+# Code starts here.
 
 source /usr/lib/bigtop-utils/bigtop-detect-javahome
 
 export HADOOP_HOME=/usr/lib/hadoop
 export HADOOP_LIBEXEC_DIR=/usr/lib/hadoop/libexec
 
-export HADOOP_LOG_DIR=/data/hadoop/logs
-export HADOOP_PID_DIR=/data/hadoop/pids
-export HADOOP_CONF_DIR=/data/hadoop/config
+export HADOOP_DIR=/data/hadoop
+export HADOOP_LOG_DIR=${HADOOP_DIR}/logs
+export HADOOP_PID_DIR=${HADOOP_DIR}/pids
+export HADOOP_CONF_DIR=${HADOOP_DIR}/config
 
-export HADOOP_DATA_DIR=/data/hadoop/hdfs
+export HADOOP_DATA_DIR=${HADOOP_DIR}/hdfs
 export HADOOP_CACHE_DIR=${HADOOP_DATA_DIR}/cache
 
-run_cmd mkdir -p -v ${HADOOP_LOG_DIR} ${HADOOP_PID_DIR} ${HADOOP_CONF_DIR} ${HADOOP_CACHE_DIR}
+# Stop any running processes.
+if [ -d ${HADOOP_DIR} ]; then
+    for i in ${HADOOP_PID_DIR}/*.pid
+    do
+        if [ ! -f "${i}" ]
+        then
+            continue
+        fi
+        if [ -n "$(ps -p $(cat ${i}) -o pid=)" ]
+        then
+            run_cmd "kill $(cat ${i})"
+        fi
+    done
+    run_cmd rm -rf ${HADOOP_DIR}
+fi
 
+run_cmd mkdir -p -v ${HADOOP_LOG_DIR} ${HADOOP_PID_DIR} ${HADOOP_CONF_DIR} ${HADOOP_CACHE_DIR}
 run_cmd cp -rnv ${HADOOP_HOME}/etc/hadoop/* ${HADOOP_CONF_DIR}
 
 run_cmd "sed -e s/AMOUNT/${N_CORES}/ -e s/HOSTNAME/localhost/ /usr/bin/mapred-site-template.xml > ${HADOOP_CONF_DIR}/mapred-site.xml"
 
-run_cmd "sed s/HOSTNAME/localhost/ /usr/bin/core-site-template.xml > ${HADOOP_CONF_DIR}/core-site.xml"
+port_count=9
+ports=($(python <<EOF
+import socket
+sockets = list()
+for i in range(${port_count}):
+    s = socket.socket()
+    s.bind(('', 0))
+    print(s.getsockname()[1])
+    sockets.append(s)
+for s in sockets:
+    s.close()
+EOF
+))
+
+run_cmd "sed -e s/AMOUNT/${N_CORES}/ \
+    -e s/HOSTNAME/localhost/ \
+    -e s/8021/${ports[0]}/ \
+    -e \"s|<configuration>|<configuration>\n  <property>\n    <name>mapred.job.tracker.http.address</name>\n    <value>localhost:${ports[1]}</value>\n  </property>\n  <property>\n    <name>mapred.task.tracker.http.address</name>\n    <value>localhost:${ports[2]}</value>\n  </property>|\" \
+/usr/bin/mapred-site-template.xml > ${HADOOP_CONF_DIR}/mapred-site.xml"
+
+run_cmd "sed -e s/HOSTNAME/localhost/ \
+    -e s/8020/${ports[3]}/ \
+/usr/bin/core-site-template.xml > ${HADOOP_CONF_DIR}/core-site.xml"
+   
+run_cmd "sed -e \"s|<configuration>|<configuration>\n  <property>\n    <name>dfs.datanode.http.address</name>\n    <value>localhost:${ports[4]}</value>\n  </property>\n  <property>\n    <name>dfs.datanode.ipc.address</name>\n    <value>localhost:${ports[5]}</value>\n  </property>\n  <property>\n    <name>dfs.datanode.address</name>\n    <value>localhost:${ports[6]}</value>\n  </property>\n  <property>\n    <name>dfs.namenode.http-address</name>\n    <value>localhost:${ports[7]}</value>\n  </property>\n  <property>\n    <name>dfs.namenode.secondary.http-address</name>\n    <value>localhost:${ports[8]}</value>\n  </property>|\" \
+/usr/lib/hadoop/etc/hadoop/hdfs-site.xml > ${HADOOP_CONF_DIR}/hdfs-site.xml"
 
 run_cmd "sed -i s+/var/lib/hadoop-hdfs/cache+${HADOOP_CACHE_DIR}+g ${HADOOP_CONF_DIR}/*"
 
