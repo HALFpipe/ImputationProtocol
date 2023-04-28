@@ -11,7 +11,7 @@ on:
 
 jobs:
   docker_build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
   
     outputs:
       tag: ${{ steps.build_tag.outputs.tag }}
@@ -82,7 +82,7 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
 
   singularity_build:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     needs:
       - docker_build
