@@ -1,21 +1,41 @@
 #!/usr/bin/env bash
 
-OPTS=`getopt -o n: --long n-cores: -n 'setup-hadoop' -- "$@"`
+OPTS=$(getopt -o n:m: --long n-cores:,memory-mb: -n 'setup-hadoop' -- "$@")
 eval set -- "$OPTS"
 
 verbose=1
 
-N_CORES=$(nproc)
+n_cores=$(nproc)
+memory_mb=$(free -m | awk '/^Mem:/{print $2}')
 
-while true ; do
+while true; do
     case "$1" in
-        -n|--n-cores)
-            case "$2" in
-                "") shift 2 ;;
-                *) N_CORES=$2 ; shift 2 ;;
-            esac ;;
-        --) shift ; break ;;
-        *) echo "Internal error!" ; exit 1 ;;
+    -n | --n-cores)
+        case "$2" in
+        "") shift 2 ;;
+        *)
+            n_cores=$2
+            shift 2
+            ;;
+        esac
+        ;;
+    -m | --memory-mb)
+        case "$2" in
+        "") shift 2 ;;
+        *)
+            memory_mb=$2
+            shift 2
+            ;;
+        esac
+        ;;
+    --)
+        shift
+        break
+        ;;
+    *)
+        echo "Internal error!"
+        exit 1
+        ;;
     esac
 done
 
@@ -25,7 +45,7 @@ run_cmd() {
     printf '%s\n' --------------------
 
     if [ "${verbose}" = "1" ]; then
-	printf "$cmd\n"
+        printf "$cmd\n"
     fi
 
     eval "$@"
@@ -33,7 +53,7 @@ run_cmd() {
     EXIT_CODE=$?
 
     if [[ $EXIT_CODE -gt 0 ]]; then
-	echo "ERROR: command exited with nonzero status $EXIT_CODE"
+        echo "ERROR: command exited with nonzero status $EXIT_CODE"
     fi
 
     printf '%s\n' --------------------
@@ -43,10 +63,8 @@ run_cmd() {
 
 # Code starts here.
 
-source /usr/lib/bigtop-utils/bigtop-detect-javahome
-
-export HADOOP_HOME=/usr/lib/hadoop
-export HADOOP_LIBEXEC_DIR=/usr/lib/hadoop/libexec
+export HADOOP_HOME=/opt/hadoop
+export HADOOP_LIBEXEC_DIR=/opt/hadoop/libexec
 
 export HADOOP_DIR=/data/hadoop
 export HADOOP_LOG_DIR=${HADOOP_DIR}/logs
@@ -58,15 +76,12 @@ export HADOOP_CACHE_DIR=${HADOOP_DATA_DIR}/cache
 
 # Stop any running processes.
 if [ -d ${HADOOP_DIR} ]; then
-    for i in ${HADOOP_PID_DIR}/*.pid
-    do
-        if [ ! -f "${i}" ]
-        then
+    for pid_file in ${HADOOP_PID_DIR}/*.pid; do
+        if [ ! -f "${pid_file}" ]; then
             continue
         fi
-        if [ -n "$(ps -p $(cat ${i}) -o pid=)" ]
-        then
-            run_cmd "kill $(cat ${i})"
+        if [ -n "$(ps -p $(cat ${pid_file}) -o pid=)" ]; then
+            run_cmd "kill $(cat ${pid_file})"
         fi
     done
     run_cmd rm -rf ${HADOOP_DIR}
@@ -75,10 +90,9 @@ fi
 run_cmd mkdir -p -v ${HADOOP_LOG_DIR} ${HADOOP_PID_DIR} ${HADOOP_CONF_DIR} ${HADOOP_CACHE_DIR}
 run_cmd cp -rnv ${HADOOP_HOME}/etc/hadoop/* ${HADOOP_CONF_DIR}
 
-run_cmd "sed -e s/AMOUNT/${N_CORES}/ -e s/HOSTNAME/localhost/ /usr/bin/mapred-site-template.xml > ${HADOOP_CONF_DIR}/mapred-site.xml"
-
-port_count=9
-ports=($(python <<EOF
+port_count=6
+ports=($(
+    python <<EOF
 import socket
 sockets = list()
 for i in range(${port_count}):
@@ -91,31 +105,148 @@ for s in sockets:
 EOF
 ))
 
-run_cmd "sed -e s/AMOUNT/${N_CORES}/ \
-    -e s/HOSTNAME/localhost/ \
-    -e s/8021/${ports[0]}/ \
-    -e \"s|<configuration>|<configuration>\n  <property>\n    <name>mapred.job.tracker.http.address</name>\n    <value>localhost:${ports[1]}</value>\n  </property>\n  <property>\n    <name>mapred.task.tracker.http.address</name>\n    <value>localhost:${ports[2]}</value>\n  </property>|\" \
-/usr/bin/mapred-site-template.xml > ${HADOOP_CONF_DIR}/mapred-site.xml"
+run_cmd "cat <<EOF > ${HADOOP_CONF_DIR}/core-site.xml
+<?xml version=\"1.0\"?>
 
-run_cmd "sed -e s/HOSTNAME/localhost/ \
-    -e s/8020/${ports[3]}/ \
-/usr/bin/core-site-template.xml > ${HADOOP_CONF_DIR}/core-site.xml"
-   
-run_cmd "sed -e \"s|<configuration>|<configuration>\n  <property>\n    <name>dfs.datanode.http.address</name>\n    <value>localhost:${ports[4]}</value>\n  </property>\n  <property>\n    <name>dfs.datanode.ipc.address</name>\n    <value>localhost:${ports[5]}</value>\n  </property>\n  <property>\n    <name>dfs.datanode.address</name>\n    <value>localhost:${ports[6]}</value>\n  </property>\n  <property>\n    <name>dfs.namenode.http-address</name>\n    <value>localhost:${ports[7]}</value>\n  </property>\n  <property>\n    <name>dfs.namenode.secondary.http-address</name>\n    <value>localhost:${ports[8]}</value>\n  </property>|\" \
-/usr/lib/hadoop/etc/hadoop/hdfs-site.xml > ${HADOOP_CONF_DIR}/hdfs-site.xml"
+<configuration>
+  <property>
+    <name>fs.defaultFS</name>
+    <value>hdfs://localhost:${ports[0]}</value>
+  </property>
+</configuration>
+EOF"
 
-run_cmd "sed -i s+/var/lib/hadoop-hdfs/cache+${HADOOP_CACHE_DIR}+g ${HADOOP_CONF_DIR}/*"
+run_cmd "cat <<EOF > ${HADOOP_CONF_DIR}/hdfs-site.xml
+<?xml version=\"1.0\"?>
+<?xml-stylesheet type=\"text/xsl\" href=\"configuration.xsl\"?>
+
+<configuration>
+  <property>
+    <name>dfs.datanode.http.address</name>
+    <value>localhost:${ports[1]}</value>
+  </property>
+  <property>
+    <name>dfs.datanode.ipc.address</name>
+    <value>localhost:${ports[2]}</value>
+  </property>
+  <property>
+    <name>dfs.datanode.address</name>
+    <value>localhost:${ports[3]}</value>
+  </property>
+  <property>
+    <name>dfs.namenode.http-address</name>
+    <value>localhost:${ports[4]}</value>
+  </property>
+  <property>
+    <name>dfs.namenode.secondary.http-address</name>
+    <value>localhost:${ports[5]}</value>
+  </property>
+  <property>
+    <name>dfs.replication</name>
+    <value>1</value>
+  </property>
+  <!-- Immediately exit safemode as soon as one DataNode checks in.
+       On a multi-node cluster, these configurations must be removed.  -->
+  <property>
+    <name>dfs.safemode.extension</name>
+    <value>0</value>
+  </property>
+  <property>
+     <name>dfs.safemode.min.datanodes</name>
+     <value>1</value>
+  </property>
+  <property>
+     <name>hadoop.tmp.dir</name>
+     <value>${HADOOP_CACHE_DIR}</value>
+  </property>
+  <property>
+     <name>dfs.namenode.name.dir</name>
+     <value>file:///data/hadoop/dfs/name</value>
+  </property>
+  <property>
+     <name>dfs.namenode.checkpoint.dir</name>
+     <value>file:///data/hadoop/dfs/namesecondary</value>
+  </property>
+  <property>
+     <name>dfs.datanode.data.dir</name>
+     <value>file:///data/hadoop/dfs/data</value>
+  </property>
+</configuration>
+EOF"
+
+# Configure pseudo-distributed operation as per
+# https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-common/SingleCluster.html
+
+run_cmd "cat <<EOF > ${HADOOP_CONF_DIR}/mapred-site.xml
+<?xml version=\"1.0\"?>
+<?xml-stylesheet type=\"text/xsl\" href=\"configuration.xsl\"?>
+
+<configuration>
+  <property>
+    <name>mapreduce.framework.name</name>
+    <value>yarn</value>
+  </property>
+  <property>
+    <name>mapreduce.application.classpath</name>
+    <value>${HADOOP_HOME}/share/hadoop/mapreduce/*:${HADOOP_HOME}/share/hadoop/mapreduce/lib/*</value>
+  </property>
+  <property>
+    <name>mapred.child.java.opts</name>
+    <value>-Xmx1024m</value>
+  </property>
+</configuration>
+EOF"
+
+run_cmd "cat <<EOF > ${HADOOP_CONF_DIR}/yarn-site.xml
+<?xml version=\"1.0\"?>
+
+<configuration>
+  <property>
+    <name>yarn.nodemanager.resource.cpu-vcores</name>
+    <value>${n_cores}</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.resource.memory-mb</name>
+    <value>${memory_mb}</value>
+  </property>
+  <property>
+    <name>yarn.scheduler.maximum-allocation-vcores</name>
+    <value>${n_cores}</value>
+  </property>
+  <property>
+    <name>yarn.scheduler.maximum-allocation-mb</name>
+    <value>${memory_mb}</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.pmem-check-enabled</name>
+    <value>false</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.vmem-check-enabled</name>
+    <value>false</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.aux-services</name>
+    <value>mapreduce_shuffle</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.env-whitelist</name>
+    <value>JAVA_HOME,HADOOP_COMMON_HOME,HADOOP_HDFS_HOME,HADOOP_CONF_DIR,CLASSPATH_PREPEND_DISTCACHE,HADOOP_YARN_HOME,HADOOP_HOME,PATH,LANG,TZ,HADOOP_MAPRED_HOME</value>
+  </property>
+</configuration>
+EOF"
+
+run_cmd "sed \
+  -i s/org.apache.hadoop.yarn.util.resource.DefaultResourceCalculator/org.apache.hadoop.yarn.util.resource.DominantResourceCalculator/g \
+  ${HADOOP_CONF_DIR}/capacity-scheduler.xml" 
 
 run_cmd "echo localhost > ${HADOOP_CONF_DIR}/masters"
-
 run_cmd "cat <<EOF >> ${HADOOP_CONF_DIR}/hadoop-env.sh
 
-# custom
+# Custom
 
 export HADOOP_LOG_DIR=${HADOOP_LOG_DIR}
 export HADOOP_PID_DIR=${HADOOP_PID_DIR}
-export YARN_LOG_DIR=${HADOOP_LOG_DIR} # no effect if using Hadoop 1
-export YARN_PID_DIR=${HADOOP_PID_DIR} # no effect if using Hadoop 1
 export HADOOP_SECURE_DN_PID_DIR=${HADOOP_PID_DIR}
 export HADOOP_HOME_WARN_SUPPRESS=TRUE
 
@@ -129,19 +260,18 @@ fi
 
 run_cmd hdfs namenode -format -nonInteractive -force
 
-run_cmd /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start namenode
-run_cmd /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start secondarynamenode
-run_cmd /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start datanode
+run_cmd ${HADOOP_HOME}/bin/hdfs --config "${HADOOP_CONF_DIR}" --daemon start namenode
+run_cmd ${HADOOP_HOME}/bin/hdfs --config "${HADOOP_CONF_DIR}" --daemon start secondarynamenode
+run_cmd ${HADOOP_HOME}/bin/hdfs --config "${HADOOP_CONF_DIR}" --daemon start datanode
 
 if [ -z "$USER" ]; then
     USER=$(whoami)
 fi
-
-if [[ $(id -u) -eq 0 ]] ; then  # running as root
+if [[ $(id -u) -eq 0 ]]; then # running as root
     export HADOOP_JOBTRACKER_USER="mapred"
     export HADOOP_TASKTRACKER_USER="mapred"
 
-    run_cmd chmod -R ugo+rw ${HADOOP_LOG_DIR} ${HADOOP_PID_DIR} ${HADOOP_CONF_DIR} ${HADOOP_DATA_DIR}  # need to allow non-root users to access
+    run_cmd chmod -R ugo+rw ${HADOOP_LOG_DIR} ${HADOOP_PID_DIR} ${HADOOP_CONF_DIR} ${HADOOP_DATA_DIR} # need to allow non-root users to access
 else
     export HADOOP_JOBTRACKER_USER=${USER}
     export HADOOP_TASKTRACKER_USER=${USER}
@@ -162,5 +292,5 @@ run_cmd hadoop fs -chown -R ${HADOOP_JOBTRACKER_USER} ${HADOOP_CACHE_DIR}/${HADO
 run_cmd hadoop fs -mkdir -p /user/${USER}
 run_cmd hadoop fs -chown ${USER} /user/${USER}
 
-run_cmd env HADOOP_HOME=/usr/lib/hadoop-0.20-mapreduce /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start jobtracker
-run_cmd env HADOOP_HOME=/usr/lib/hadoop-0.20-mapreduce /usr/lib/hadoop/sbin/hadoop-daemon.sh --config "${HADOOP_CONF_DIR}" start tasktracker
+run_cmd ${HADOOP_HOME}/bin/yarn --daemon start resourcemanager
+run_cmd ${HADOOP_HOME}/bin/yarn --daemon start nodemanager

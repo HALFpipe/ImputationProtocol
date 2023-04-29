@@ -8,7 +8,7 @@ run_cmd() {
     printf '%s\n' --------------------
 
     if [ "${verbose}" = "1" ]; then
-	printf "$cmd\n"
+        printf "$cmd\n"
     fi
 
     eval "$@"
@@ -16,7 +16,7 @@ run_cmd() {
     exit_code=$?
 
     if [[ ${exit_code} -gt 0 ]]; then
-	echo "ERROR: command exited with nonzero status ${exit_code}"
+        echo "ERROR: command exited with nonzero status ${exit_code}"
     fi
 
     printf '%s\n' --------------------
@@ -26,7 +26,13 @@ run_cmd() {
 
 export HADOOP_PID_DIR=/data/hadoop/pids
 
-for pid_file in ${HADOOP_PID_DIR}/hadoop-*.pid; do
-    run_cmd "kill \$(cat ${pid_file})"
-    run_cmd rm pid_file
+# Stop any running processes.
+for pid_file in ${HADOOP_PID_DIR}/*.pid; do
+    if [ ! -f "${pid_file}" ]; then
+        continue
+    fi
+    if [ -n "$(ps -p $(cat ${pid_file}) -o pid=)" ]; then
+        run_cmd "kill \$(cat ${pid_file})"
+        run_cmd rm ${pid_file}
+    fi
 done

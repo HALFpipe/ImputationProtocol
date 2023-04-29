@@ -1,6 +1,21 @@
-FROM genepi/imputationserver:v1.5.7
+FROM apache/hadoop:3
 
-# download data
+USER root
+
+# Install R and required packages for Cloudgene.
+RUN yum update -y \
+    && yum install -y R
+RUN R -e 'install.packages(c("knitr", "markdown", "rmarkdown", "ggplot2", "data.table"), repos = "http://cran.rstudio.com")'
+
+# Install Cloudgene.
+ENV CLOUDGENE_VERSION=2.5.7
+RUN mkdir /opt/cloudgene \
+    && cd /opt/cloudgene \
+    && curl --silent install.cloudgene.io | bash -s ${CLOUDGENE_VERSION}
+COPY cloudgene/cloudgene.conf /opt/cloudgene/cloudgene.conf
+ENV PATH="/opt/cloudgene:${PATH}"
+
+# Download data.
 RUN mkdir -p -v /localdata/mds && \
     for file_name in HM3_b37.bed HM3_b37.bim HM3_b37.fam; do \
     wget \
@@ -17,7 +32,7 @@ RUN mkdir -p -v /localdata/liftover && \
 RUN mkdir -p -v /localdata/imputationserver && \
     wget --progress=dot:giga -O "/localdata/imputationserver/1000genomes-phase3.zip" "https://imputationserver.sph.umich.edu/static/downloads/releases/1000genomes-phase3-3.0.0.zip"
 
-# install software
+# Install additional software.
 RUN wget --progress=dot:mega -O "/tmp/plink_linux.zip" "https://s3.amazonaws.com/plink1-assets/plink_linux_x86_64_20210606.zip" && \
     unzip /tmp/plink_linux.zip plink -d /usr/local/bin && \
     wget --progress=dot:mega -O "/tmp/plink2_linux.zip" "https://s3.amazonaws.com/plink2-assets/alpha2/plink2_linux_x86_64.zip" && \
@@ -29,10 +44,8 @@ RUN wget --progress=dot:mega -O "/tmp/plink_linux.zip" "https://s3.amazonaws.com
     wget --progress=dot:mega -O "/usr/local/bin/liftOver" "https://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/liftOver" && \
     rm -rf /tmp/* && sync
 
-ENV PATH="/usr/local/miniconda/bin:$PATH" \
-    CPATH="/usr/local/miniconda/include:$CPATH" \
-    LANG="C.UTF-8" \
-    LC_ALL="C.UTF-8"
+ENV PATH="/usr/local/miniconda/bin:${PATH}" \
+    CPATH="/usr/local/miniconda/include:${CPATH}"
 
 RUN conda config --add channels bioconda && \
     conda install --yes \
@@ -52,8 +65,7 @@ RUN conda config --add channels bioconda && \
     rm -rf ~/.conda ~/.cache/pip/* && \
     sync
 
-# install scripts
-COPY cloudgene-override/* /opt/cloudgene/
+# Install scripts.
 COPY bin/* /usr/local/bin/
 
 CMD ["/bin/bash"]
