@@ -22,6 +22,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Docker daemon
+        shell: bash
+        run: |
+          sudo apt-get update -y || true
+          sudo apt-get upgrade -y
+          sudo apt-get install -y curl apt-transport-https ca-certificates gnupg lsb-release software-properties-common
+          curl --silent https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+          sudo add-apt-repository "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+          sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
