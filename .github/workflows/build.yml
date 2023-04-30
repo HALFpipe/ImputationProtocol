@@ -2,7 +2,7 @@ name: build
 
 on:
   push:
-    branches: 
+    branches:
       - main
   release:
     types:
@@ -12,25 +12,20 @@ on:
 jobs:
   docker_build:
     runs-on: self-hosted
-  
+
     outputs:
       tag: ${{ steps.build_tag.outputs.tag }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
       - name: Set up Docker daemon
         shell: bash
         run: |
-          sudo apt-get update -y || true
-          sudo apt-get upgrade -y
-          sudo apt-get install -y curl apt-transport-https ca-certificates gnupg lsb-release software-properties-common
+          sudo DEBIAN_FRONTEND="noninteractive" apt-get update -y -q || true
+          sudo DEBIAN_FRONTEND="noninteractive" apt-get upgrade -y -q
+          sudo DEBIAN_FRONTEND="noninteractive" apt-get install -y -q curl apt-transport-https ca-certificates gnupg lsb-release software-properties-common
           curl --silent https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
           sudo add-apt-repository "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-          sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+          sudo DEBIAN_FRONTEND="noninteractive" apt-get install -y -q docker-ce docker-ce-cli containerd.io fuse-overlayfs
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -52,33 +47,36 @@ jobs:
         id: build_tag
         shell: bash
         env:
-          GITHUB_REF: ${{ github.ref }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
+          github_ref: ${{ github.ref }}
+          github_repository: ${{ github.repository }}
         run: |
-          VERSION=$(echo "${GITHUB_REF}" | cut -d '/' -f 3)
-          if [[ "$VERSION" == "main" ]]; then
-            VERSION=latest
+          version=$(echo "${github_ref}" | cut -d '/' -f 3)
+          if [[ "$version" == "main" ]]; then
+            version=latest
           fi
-          OWNER=$( \
-            echo "${GITHUB_REPOSITORY}" | \
+          owner=$( \
+            echo "${github_repository}" | \
             cut -d'/' -f1 | \
             tr '[:upper:]' '[:lower:]' \
           )
-          REPO=$( \
-            echo "${GITHUB_REPOSITORY}" | \
+          name=$( \
+            echo "${github_repository}" | \
             cut -d'/' -f2 | \
             sed -r 's/([A-Za-z0-9])([A-Z])([a-z0-9])/\1-\L\2\3/g' | \
             tr '[:upper:]' '[:lower:]' \
           )
-          echo "::set-output name=repo::${OWNER}/${REPO}"
-          echo "::set-output name=tag::${OWNER}/${REPO}:${VERSION}"
+          echo "repo=${owner}/${name}" >> ${GITHUB_OUTPUT}
+          echo "tag=${owner}/${name}:${version}" >> ${GITHUB_OUTPUT}
+
+      - name: Checkout
+        uses: actions/checkout@v3
 
       - name: Docker build and push
         uses: docker/build-push-action@v4
         with:
+          context: "."
+          file: "./Dockerfile"
           push: true
-          context: .
-          file: ./Dockerfile
           platforms: linux/amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -90,6 +88,7 @@ jobs:
             org.opencontainers.image.url=${{ github.event.repository.html_url }}
             org.opencontainers.image.source=${{ github.event.repository.html_url }}
             org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.event.repository.updated_at}}
 
   singularity_build:
     runs-on: self-hosted
@@ -119,7 +118,7 @@ jobs:
           patch /docker2singularity.sh /tmp/docker2singularity.patch
 
       - name: Convert to Singularity
-        shell: bash  
+        shell: bash
         env:
           DOCKER_IMAGE_NAME: ${{ needs.docker_build.outputs.tag }}
         run: |
@@ -131,7 +130,7 @@ jobs:
                     echo "::set-output name=image::${SINGULARITY_IMAGE_FILE}"
 
       - name: Upload to DigitalOcean
-        shell: bash  
+        shell: bash
         env:
           DIGITALOCEAN_ACCESS_KEY: ${{ secrets.DIGITALOCEAN_ACCESS_KEY }}
           DIGITALOCEAN_SECRET_KEY: ${{ secrets.DIGITALOCEAN_SECRET_KEY }}
