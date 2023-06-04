@@ -1,3 +1,9 @@
+FROM sbtscala/scala-sbt:eclipse-temurin-jammy-19.0.1_10_1.9.0_3.2.2 as builder
+
+COPY src/extract-all /src/extract-all
+RUN cd /src/extract-all \
+    && sbt assembly
+
 FROM apache/hadoop:3
 
 USER root
@@ -67,5 +73,6 @@ RUN conda config --add channels bioconda && \
 
 # Install scripts.
 COPY bin/* /usr/local/bin/
+COPY --from=builder /src/extract-all/target/scala-*/extract-all.jar /usr/local/bin/extract-all.jar
 
 CMD ["/bin/bash"]

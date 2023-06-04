@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 
-OPTS=$(getopt -o s:p:z --long study-name:,zstd-compress -n 'make-archive' -- "$@")
+OPTS=$(getopt -o s:p:z --long study-name:,password:,zstd-compress -n 'make-archive' -- "$@")
 eval set -- "$OPTS"
 
 verbose=1
 zsdt_compress=0
+password="password"
 
 while true; do
     case "$1" in
@@ -20,6 +21,15 @@ while true; do
     -z | --zstd-compress)
         zsdt_compress=1
         shift 1
+        ;;
+    -p | --password)
+        case "$2" in
+        "") shift 2 ;;
+        *)
+            password=$2
+            shift 2
+            ;;
+        esac
         ;;
     --)
         shift
@@ -47,7 +57,7 @@ run_cmd() {
     printf '%s\n' --------------------
 
     if [ "${verbose}" = "1" ]; then
-        printf "$cmd\n"
+        printf "%s\n" "${cmd}"
     fi
 
     ("$@")
@@ -63,43 +73,61 @@ run_cmd() {
     return ${exit_code}
 }
 
-#/data/
 archive=${study_name}.zip
 
 add_files() {
     if [[ $# -eq 0 ]]; then
         return
     fi
-    run_cmd 7z a ${archive} $@
+    run_cmd 7z a "${archive}" $@
 }
 
 extract_and_add() {
-    a=$1
-
+    encrypted_archive=$1
     tmp_dir=$(mktemp -d)
-    run_cmd 7z -aoa -o${tmp_dir} -ppassword x ${a}
 
-    for v in $(find ${tmp_dir} -type f -name "*.dose.vcf.gz"); do
-        if [[ ${zsdt_compress} -eq 1 ]]; then
-            bgzip -c -d ${v} | zstd -T0 -B0 -f --ultra -22 -o "${tmp_dir}/$(basename ${v} .gz).zst"
-            run_cmd rm ${v}
-        else
-            run_cmd tabix -p vcf ${v}
-        fi
-    done
+    # Extract encrypted archive
+    if ! run_cmd extract-all.jar \
+        --input-file "${encrypted_archive}" \
+        --output-directory "${tmp_dir}" \
+        --password "${password}"; then
+        fail "Archive \"${archive}\" could not be extracted"
+    fi
 
-    add_files \
-        $(find ${tmp_dir} -type f)
-    run_cmd rm -rf ${tmp_dir}
+    find "${tmp_dir}" -type f -name "*.dose.vcf.gz" -print0 |
+        while IFS= read -r -d '' v; do
+            if [[ ${zsdt_compress} -eq 1 ]]; then
+                # Apply zstd compression
+                bgzip -c -d "${v}" | zstd -T0 -B0 -f --ultra -22 -o "${tmp_dir}/$(basename "${v}" .gz).zst"
+                run_cmd rm -f "${v}"
+            else
+                # Index gzip compressed VCF
+                run_cmd tabix -p vcf "${v}"
+            fi
+        done
+
+    # Add extracted files to archive
+    add_files "$(find "${tmp_dir}" -type f)"
+
+    # Remove temporary directory
+    run_cmd rm -rf "${tmp_dir}"
 }
-export -f extract_and_add
 
-# /data/
-output=output/${study_name}
+# Ensure that we have the correct output directory
+if [ -d "/data/output" ]; then
+    study_output_directory="/data/output/${study_name}"
+elif [ -d "$(pwd)/output/${study_name}" ]; then
+    study_output_directory="$(pwd)/output/${study_name}"
+elif [ -d "$(pwd)/${study_name}" ]; then
+    study_output_directory="$(pwd)/${study_name}"
+else
+    fail "Could not find imputation server output directory"
+fi
 
-add_files ${output}/job.txt ${output}/std.out
-add_files $(find ${output}/{qcreport,statisticDir,logfile} -type f)
+add_files "${study_output_directory}/job.txt" "${study_output_directory}/std.out"
+add_files "$(find "${study_output_directory}"/{qcreport,statisticDir,logfile} -type f)"
 
-for a in $(find ${output}/local -type f -name "chr_*.zip"); do
-    extract_and_add ${a}
-done
+find "${study_output_directory}/local" -type f -name "chr_*.zip" -print0 |
+    while IFS= read -r -d '' a; do
+        extract_and_add "${a}"
+    done
