@@ -23,7 +23,8 @@ jobs:
           sudo DEBIAN_FRONTEND="noninteractive" apt-get update -y -q || true
           sudo DEBIAN_FRONTEND="noninteractive" apt-get upgrade -y -q
           sudo DEBIAN_FRONTEND="noninteractive" apt-get install -y -q curl apt-transport-https ca-certificates gnupg lsb-release software-properties-common
-          curl --silent https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+          curl --silent https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/docker.gpg
+          sudo chmod a+r /etc/apt/trusted.gpg.d/docker.gpg
           sudo add-apt-repository "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
           sudo DEBIAN_FRONTEND="noninteractive" apt-get install -y -q docker-ce docker-ce-cli containerd.io fuse-overlayfs
 
@@ -78,8 +79,8 @@ jobs:
           file: "./Dockerfile"
           push: true
           platforms: linux/amd64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ steps.build_tag.outputs.tag }}:buildcache
+          cache-to: type=inline,mode=max,ref=ghcr.io/${{ steps.build_tag.outputs.tag }}:buildcache
           tags: |
             ${{ steps.build_tag.outputs.tag }}
             ghcr.io/${{ steps.build_tag.outputs.tag }}
