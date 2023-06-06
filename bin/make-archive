@@ -128,6 +128,7 @@ add_files "${study_output_directory}/job.txt" "${study_output_directory}/std.out
 add_files "$(find "${study_output_directory}"/{qcreport,statisticDir,logfile} -type f)"
 
 find "${study_output_directory}/local" -type f -name "chr_*.zip" -print0 |
+    sort --zero-terminated --version-sort |
     while IFS= read -r -d '' a; do
         extract_and_add "${a}"
     done

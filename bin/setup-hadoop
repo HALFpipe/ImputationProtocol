@@ -45,10 +45,10 @@ run_cmd() {
     printf '%s\n' --------------------
 
     if [ "${verbose}" = "1" ]; then
-        printf "$cmd\n"
+        printf "%s\n" "${cmd}"
     fi
 
-    eval "$@"
+    ("$@")
 
     EXIT_CODE=$?
 
@@ -76,12 +76,12 @@ export HADOOP_CACHE_DIR=${HADOOP_DATA_DIR}/cache
 
 # Stop any running processes.
 if [ -d ${HADOOP_DIR} ]; then
-    for pid_file in ${HADOOP_PID_DIR}/*.pid; do
+    for pid_file in "${HADOOP_PID_DIR}"/*.pid; do
         if [ ! -f "${pid_file}" ]; then
             continue
         fi
-        if [ -n "$(ps -p $(cat ${pid_file}) -o pid=)" ]; then
-            run_cmd "kill $(cat ${pid_file})"
+        if [ -n "$(ps -p "$(cat "${pid_file}")" -o pid=)" ]; then
+            run_cmd "kill $(cat "${pid_file}")"
         fi
     done
     run_cmd rm -rf ${HADOOP_DIR}
@@ -91,8 +91,7 @@ run_cmd mkdir -p -v ${HADOOP_LOG_DIR} ${HADOOP_PID_DIR} ${HADOOP_CONF_DIR} ${HAD
 run_cmd cp -rnv ${HADOOP_HOME}/etc/hadoop/* ${HADOOP_CONF_DIR}
 
 port_count=6
-ports=($(
-    python <<EOF
+mapfile -t ports < <(python <<EOF
 import socket
 sockets = list()
 for i in range(${port_count}):
@@ -103,7 +102,7 @@ for i in range(${port_count}):
 for s in sockets:
     s.close()
 EOF
-))
+)
 
 run_cmd "cat <<EOF > ${HADOOP_CONF_DIR}/core-site.xml
 <?xml version=\"1.0\"?>
@@ -193,6 +192,14 @@ run_cmd "cat <<EOF > ${HADOOP_CONF_DIR}/mapred-site.xml
   <property>
     <name>mapred.child.java.opts</name>
     <value>-Xmx1024m</value>
+  </property>
+  <property>
+    <name>mapreduce.task.timeout</name>
+    <value>0</value>
+  </property>
+  <property>
+    <name>mapreduce.task.stuck.timeout-ms</name>
+    <value>0</value>
   </property>
 </configuration>
 EOF"
@@ -285,12 +292,12 @@ run_cmd hadoop fs -mkdir -p /var
 run_cmd hadoop fs -mkdir -p /var/log
 run_cmd hadoop fs -chmod -R 1775 /var/log
 
-run_cmd hadoop fs -mkdir -p ${HADOOP_CACHE_DIR}/${HADOOP_JOBTRACKER_USER}/mapred/staging
-run_cmd hadoop fs -chmod 1777 ${HADOOP_CACHE_DIR}/${HADOOP_JOBTRACKER_USER}/mapred/staging
-run_cmd hadoop fs -chown -R ${HADOOP_JOBTRACKER_USER} ${HADOOP_CACHE_DIR}/${HADOOP_JOBTRACKER_USER}
+run_cmd hadoop fs -mkdir -p "${HADOOP_CACHE_DIR}/${HADOOP_JOBTRACKER_USER}/mapred/staging"
+run_cmd hadoop fs -chmod 1777 "${HADOOP_CACHE_DIR}/${HADOOP_JOBTRACKER_USER}/mapred/staging"
+run_cmd hadoop fs -chown -R "${HADOOP_JOBTRACKER_USER}" "${HADOOP_CACHE_DIR}/${HADOOP_JOBTRACKER_USER}"
 
-run_cmd hadoop fs -mkdir -p /user/${USER}
-run_cmd hadoop fs -chown ${USER} /user/${USER}
+run_cmd hadoop fs -mkdir -p "/user/${USER}"
+run_cmd hadoop fs -chown "${USER}" "/user/${USER}"
 
 run_cmd ${HADOOP_HOME}/bin/yarn --daemon start resourcemanager
 run_cmd ${HADOOP_HOME}/bin/yarn --daemon start nodemanager

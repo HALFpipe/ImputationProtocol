@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 
-opts=`getopt -o s:p: --long population:,study-name:,r2Filter: -n 'imputationserver' -- "$@"`
+opts=$(getopt -o s:p: --long population:,study-name:,r2Filter: -n 'imputationserver' -- "$@")
 
 exit_code=$?
 
-if [ ${exit_code} -ne 0  ]
-then
+if [ ${exit_code} -ne 0 ]; then
     exit ${exit_code}
 fi
 
@@ -13,31 +12,49 @@ eval set -- "$opts"
 
 verbose=1
 
-while true ; do
+while true; do
     case "$1" in
-        -s|--study-name)
-            case "$2" in
-                "") shift 2 ;;
-                *) study_name=$2 ; shift 2 ;;
-            esac ;;
-        -p|--population)
-            case "$2" in
-                "") shift 2 ;;
-                *) population=$2 ; shift 2 ;;
-            esac ;;
-        --r2Filter)
-            case "$2" in
-                "") shift 2 ;;
-                *) r2Filter=$2 ; shift 2 ;;
-            esac ;;
-        --) shift ; break ;;
-        *) echo "Internal error!" ; exit 1 ;;
+    -s | --study-name)
+        case "$2" in
+        "") shift 2 ;;
+        *)
+            study_name=$2
+            shift 2
+            ;;
+        esac
+        ;;
+    -p | --population)
+        case "$2" in
+        "") shift 2 ;;
+        *)
+            population=$2
+            shift 2
+            ;;
+        esac
+        ;;
+    --r2Filter)
+        case "$2" in
+        "") shift 2 ;;
+        *)
+            r2Filter=$2
+            shift 2
+            ;;
+        esac
+        ;;
+    --)
+        shift
+        break
+        ;;
+    *)
+        echo "Internal error!"
+        exit 1
+        ;;
     esac
 done
 
 fail() {
-    printf '%s\n' "$1" >&2    
-    exit "${2-1}"  
+    printf '%s\n' "$1" >&2
+    exit "${2-1}"
 }
 
 if [[ ! -v study_name ]]; then
@@ -54,15 +71,15 @@ run_cmd() {
     printf '%s\n' --------------------
 
     if [ "$verbose" = "1" ]; then
-	printf "$cmd\n"
+        printf "%s\n" "${cmd}"
     fi
 
-    ( "$@" )
+    ("$@")
 
     exit_code=$?
 
     if [[ ${exit_code} -gt 0 ]]; then
-	echo "ERROR: command exited with nonzero status ${exit_code}"
+        echo "ERROR: command exited with nonzero status ${exit_code}"
     fi
 
     printf '%s\n' --------------------
@@ -83,16 +100,17 @@ if [ ! -z "${r2Filter}" ]; then
     extra_flags="${extra_flags} --r2Filter ${r2Filter}"
 fi
 
-if [ -z "${USER}" ]; then 
-    export USER=$(whoami)
+if [ -z "${USER}" ]; then
+    USER=$(whoami)
+    export USER
 fi
 
-run_cmd mkdir -p -v /data/output/${study_name}
+run_cmd mkdir -p -v "/data/output/${study_name}"
 
 run_cmd cloudgene run imputationserver \
     --conf ${HADOOP_CONF_DIR} \
     --refpanel "1000g-phase-3-v5" \
-    --population ${population} \
+    --population "${population}" \
     --files "/data/input/${study_name}" \
     --output "/data/output/${study_name}" \
-    --user ${USER} ${extra_flags}
+    --user "${USER}" "${extra_flags}"

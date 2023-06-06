@@ -1,30 +1,44 @@
 #!/usr/bin/env bash
 
-OPTS=`getopt -o s:b: --long study-name:,bfile: -n 'enigma-qc' -- "$@"`
+OPTS=$(getopt -o s:b: --long study-name:,bfile: -n 'enigma-qc' -- "$@")
 eval set -- "$OPTS"
 
 verbose=1
 
-while true ; do
+while true; do
     case "$1" in
-        -b|--bfile)
-            case "$2" in
-                "") shift 2 ;;
-                *) bfile=$2 ; shift 2 ;;
-            esac ;;
-        -s|--study-name)
-            case "$2" in
-                "") shift 2 ;;
-                *) study_name=$2 ; shift 2 ;;
-            esac ;;
-        --) shift ; break ;;
-        *) echo "Internal error!" ; exit 1 ;;
+    -b | --bfile)
+        case "$2" in
+        "") shift 2 ;;
+        *)
+            bfile=$2
+            shift 2
+            ;;
+        esac
+        ;;
+    -s | --study-name)
+        case "$2" in
+        "") shift 2 ;;
+        *)
+            study_name=$2
+            shift 2
+            ;;
+        esac
+        ;;
+    --)
+        shift
+        break
+        ;;
+    *)
+        echo "Internal error!"
+        exit 1
+        ;;
     esac
 done
 
 fail() {
-    printf '%s\n' "$1" >&2    
-    exit "${2-1}"  
+    printf '%s\n' "$1" >&2
+    exit "${2-1}"
 }
 
 if [[ ! -v study_name ]]; then
@@ -41,15 +55,15 @@ run_cmd() {
     printf '%s\n' --------------------
 
     if [ "${verbose}" = "1" ]; then
-	printf "$cmd\n"
+        printf "%s\n" "${cmd}"
     fi
 
-    eval "$@"
+    ("$@")
 
     exit_code=$?
 
     if [[ ${exit_code} -gt 0 ]]; then
-	echo "ERROR: command exited with nonzero status ${exit_code}"
+        echo "ERROR: command exited with nonzero status ${exit_code}"
     fi
 
     printf '%s\n' --------------------
@@ -60,7 +74,7 @@ run_cmd() {
 # code starts here
 
 vcf_directory=/data/input/${study_name}
-run_cmd mkdir -p -v ${vcf_directory}
+run_cmd mkdir -p -v "${vcf_directory}"
 
 run_cmd "sed 's/\r$//' ${bfile}.bim | \
     awk '((\$5 == \"A\" && \$6 == \"T\") || \
@@ -69,7 +83,7 @@ run_cmd "sed 's/\r$//' ${bfile}.bim | \
           (\$5 == \"C\" && \$6 == \"G\")) { print \$2 }' > ambiguous"
 
 out="lastQC"
-run_cmd plink2 --bfile ${bfile} \
+run_cmd plink2 --bfile "${bfile}" \
     --nonfounders \
     --out "${out}" \
     --exclude "ambiguous" \
@@ -97,6 +111,6 @@ for c in {1..22} X; do
         --nonfounders \
         --out "chr${c}" \
         --chr "${c}" \
-        --export "vcf-4.2" 
+        --export "vcf-4.2"
     run_cmd "vcf-sort chr${c}.vcf | bgzip -c > ${vcf_directory}/chr${c}.vcf.gz"
 done

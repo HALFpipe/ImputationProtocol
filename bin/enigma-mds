@@ -1,26 +1,39 @@
 #!/usr/bin/env bash
 
-OPTS=`getopt -o b:s: --long study-name:,bfile: -n 'enigma-mds' -- "$@"`
+OPTS=$(getopt -o b:s: --long study-name:,bfile: -n 'enigma-mds' -- "$@")
 eval set -- "$OPTS"
 
 verbose=1
 
-while true ; do
+while true; do
     case "$1" in
-        -b|--bfile)
-            case "$2" in
-                "") shift 2 ;;
-                *) BFILE=$2 ; shift 2 ;;
-            esac ;;
-        -v|--verbose) verbose=1 ; shift ;;
-        --) shift ; break ;;
-        *) echo "Internal error!" ; exit 1 ;;
+    -b | --bfile)
+        case "$2" in
+        "") shift 2 ;;
+        *)
+            BFILE=$2
+            shift 2
+            ;;
+        esac
+        ;;
+    -v | --verbose)
+        verbose=1
+        shift
+        ;;
+    --)
+        shift
+        break
+        ;;
+    *)
+        echo "Internal error!"
+        exit 1
+        ;;
     esac
 done
 
 fail() {
-    printf '%s\n' "$1" >&2    
-    exit "${2-1}"  
+    printf '%s\n' "$1" >&2
+    exit "${2-1}"
 }
 
 if [[ ! -v BFILE ]]; then
@@ -33,15 +46,15 @@ run_cmd() {
     printf '%s\n' --------------------
 
     if [ "${verbose}" = "1" ]; then
-	echo "$cmd"
+        printf "%s\n" "${cmd}"
     fi
 
-    eval "$@"
+    ("$@")
 
     exit_code=$?
 
     if [[ ${exit_code} -gt 0 ]]; then
-	echo "ERROR: command exited with nonzero status ${exit_code}"
+        echo "ERROR: command exited with nonzero status ${exit_code}"
     fi
 
     printf '%s\n' --------------------

@@ -7,16 +7,16 @@ run_cmd() {
 
     printf '%s\n' --------------------
 
-    if [ "$verbose" = "1" ]; then
-	printf "$cmd\n"
+    if [ "${verbose}" = "1" ]; then
+        printf "%s\n" "${cmd}"
     fi
 
-    eval "$@"
+    ("$@")
 
     EXIT_CODE=$?
 
     if [[ $EXIT_CODE -gt 0 ]]; then
-	echo "ERROR: command exited with nonzero status $EXIT_CODE"
+        echo "ERROR: command exited with nonzero status $EXIT_CODE"
     fi
 
     printf '%s\n' --------------------
@@ -37,8 +37,8 @@ run_cmd cloudgene verify-cluster
 imputationserver_version="1.7.3"
 if [ ! -f /data/cloudgene/apps/imputationserver/${imputationserver_version}/imputationserver.jar ]; then
     run_cmd wget --continue \
-	-O "/data/downloads/imputationserver-${imputationserver_version}.zip" \
-	"https://github.com/genepi/imputationserver/releases/download/v${imputationserver_version}/imputationserver.zip"
+        -O "/data/downloads/imputationserver-${imputationserver_version}.zip" \
+        "https://github.com/genepi/imputationserver/releases/download/v${imputationserver_version}/imputationserver.zip"
     run_cmd cloudgene install /data/downloads/imputationserver-${imputationserver_version}.zip
 fi
 
@@ -49,7 +49,7 @@ fi
 
 run_cmd "sed -i \"s/value: auto/value: password/g\" /data/cloudgene/apps/imputationserver/*/*.yaml"
 
-run_cmd find /data/cloudgene/apps -type d -exec chmod ugo+w {} +  # need to be writable because it will be used as a temp dir
-run_cmd find /data/cloudgene/apps -type f -exec chmod ugo-w {} +  # should not be writable, or cloudgene will delete the files after import to hadoop hdfs
+run_cmd find /data/cloudgene/apps -type d -exec chmod ugo+w {} + # need to be writable because it will be used as a temp dir
+run_cmd find /data/cloudgene/apps -type f -exec chmod ugo-w {} + # should not be writable, or cloudgene will delete the files after import to hadoop hdfs
 
 run_cmd mkdir -p -v /data/input /data/output
