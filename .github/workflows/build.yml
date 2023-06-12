@@ -27,9 +27,9 @@ jobs:
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v2
         with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: gwas.science
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
 
       - name: Set up build tag
         id: build_tag
@@ -53,8 +53,8 @@ jobs:
             sed -r 's/([A-Za-z0-9])([A-Z])([a-z0-9])/\1-\L\2\3/g' | \
             tr '[:upper:]' '[:lower:]' \
           )
-          echo "repo=${owner}/${name}" >> ${GITHUB_OUTPUT}
-          echo "tag=${owner}/${name}:${version}" >> ${GITHUB_OUTPUT}
+          echo "repo=${name}" >> ${GITHUB_OUTPUT}
+          echo "tag=${name}:${version}" >> ${GITHUB_OUTPUT}
 
       - name: Checkout
         uses: actions/checkout@v3
@@ -66,11 +66,10 @@ jobs:
           file: "./Dockerfile"
           push: true
           platforms: linux/amd64
-          cache-from: type=registry,ref=${{ steps.build_tag.outputs.repo }}:buildcache
-          cache-to: type=registry,mode=max,ref=ghcr.io/${{ steps.build_tag.outputs.repo }}:buildcache
+          cache-from: type=registry,ref=gwas.science/${{ steps.build_tag.outputs.repo }}:buildcache
+          cache-to: type=registry,ref=gwas.science/${{ steps.build_tag.outputs.repo }}:buildcache,mode=max
           tags: |
-            ${{ steps.build_tag.outputs.tag }}
-            ghcr.io/${{ steps.build_tag.outputs.tag }}
+            gwas.science/${{ steps.build_tag.outputs.tag }}
           labels: |
             org.opencontainers.image.title=${{ github.event.repository.name }}
             org.opencontainers.image.url=${{ github.event.repository.html_url }}
@@ -84,7 +83,7 @@ jobs:
       - docker_build
     defaults:
       run:
-        shell: bash --login -e {0}
+        shell: bash --login -x -e {0}
     steps:
       - uses: conda-incubator/setup-miniconda@v2
         with:
@@ -113,12 +112,13 @@ jobs:
             docker://ghcr.io/${docker_build_tag}
           echo "name=${singularity_build_name}" >> ${GITHUB_OUTPUT}
 
-      - name: Set up S3cmd
+      - name: Upload to DigitalOcean
         env:
           digitalocean_access_key: ${{ secrets.DIGITALOCEAN_ACCESS_KEY }}
           digitalocean_secret_key: ${{ secrets.DIGITALOCEAN_SECRET_KEY }}
           digitalocean_region: ${{ secrets.DIGITALOCEAN_REGION }}
           digitalocean_space_name: ${{ secrets.DIGITALOCEAN_SPACE_NAME }}
+          singularity_build_name: ${{ steps.singularity_build.outputs.name }}
         run: |
           pip install s3cmd
           s3cmd --stop-on-error \
@@ -129,10 +129,5 @@ jobs:
             --host-bucket="%(bucket)s.${digitalocean_region}.digitaloceanspaces.com" \
             --dump-config \
             > ${HOME}/.s3cfg
-
-      - name: Upload to DigitalOcean
-        env:
-          singularity_build_name: ${{ steps.singularity_build.outputs.name }}
-        run: |
           s3cmd put ${singularity_build_name}.sif s3://${digitalocean_space_name}/singularity/
           s3cmd setacl s3://${digitalocean_space_name}/singularity/$(basename ${singularity_image_file}) --acl-public
