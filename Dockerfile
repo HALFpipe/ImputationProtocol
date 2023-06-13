@@ -18,7 +18,6 @@ ENV CLOUDGENE_VERSION=2.5.7
 RUN mkdir /opt/cloudgene \
     && cd /opt/cloudgene \
     && curl --silent install.cloudgene.io | bash -s ${CLOUDGENE_VERSION}
-COPY cloudgene/cloudgene.conf /opt/cloudgene/cloudgene.conf
 ENV PATH="/opt/cloudgene:${PATH}"
 
 # Download data.
