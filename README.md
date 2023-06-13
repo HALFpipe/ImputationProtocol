@@ -37,11 +37,6 @@ You need to download the container file using one of the following commands. Thi
     <td><code>wget <a href="http://download.gwas.science/singularity/imputation-protocol-latest.sif">http://download.gwas.science/singularity/imputation-protocol-latest.sif</code></a></td>
   </tr>
   <tr>
-    <td>Singularity</td>
-    <td>2.x</td>
-    <td><code>wget <a href="http://download.gwas.science/singularity/imputation-protocol-latest.simg">http://download.gwas.science/singularity/imputation-protocol-latest.simg</code></a></td>
-  </tr>
-  <tr>
     <td>Docker</td>
     <td></td>
     <td><code>docker pull gwas.science/imputation-protocol:latest</code></td>
@@ -113,7 +108,7 @@ Inside the container, we will first set up our local instance of the <a href="ht
 The <code>setup-hadoop</code> command will start a <a href="https://hadoop.apache.org/">Hadoop</a> instance on your computer, which consists of four background processes. When you are finished processing all your samples, you can stop them with the  <code>stop-hadoop</code> command. If you are using Docker, then these processes will be stopped automatically when you exit the container shell.
 </p>
 <p>
-The <code>setup-imputationserver</code> script will then verify that the Hadoop instance works, and then download the <a href="https://imputationserver.readthedocs.io/en/latest/reference-panels/#1000-genomes-phase-3-version-5">1000 Genomes Phase 3 v5</a> genome reference that will be used for imputation (around 15 GB of data, so it may take a while).
+The <code>setup-imputationserver</code> script will then verify that the Hadoop instance works, and then install the <a href="https://imputationserver.readthedocs.io/en/latest/reference-panels/#1000-genomes-phase-3-version-5">1000 Genomes Phase 3 v5</a> genome reference that will be used for imputation (around 15 GB of data, so it may take a while).
 </p>
 <p>
 If you are resuming analyses in an existing working directory, and do not still have the Hadoop background processes running, then you should re-run the setup commands. If they are still running, then you can skip this step.
