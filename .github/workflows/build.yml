@@ -130,4 +130,4 @@ jobs:
             --dump-config \
             > ${HOME}/.s3cfg
           s3cmd put ${singularity_build_name}.sif s3://${digitalocean_space_name}/singularity/
-          s3cmd setacl s3://${digitalocean_space_name}/singularity/$(basename ${singularity_image_file}) --acl-public
+          s3cmd setacl s3://${digitalocean_space_name}/singularity/${singularity_build_name}.sif --acl-public

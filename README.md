@@ -34,17 +34,17 @@ You need to download the container file using one of the following commands. Thi
   <tr>
     <td>Singularity</td>
     <td>3.x</td>
-    <td><code>wget <a href="http://download.gwas.science/singularity/hippocampusgirl-imputation-protocol-latest.sif">http://download.gwas.science/singularity/hippocampusgirl-imputation-protocol-latest.sif</code></a></td>
+    <td><code>wget <a href="http://download.gwas.science/singularity/imputation-protocol-latest.sif">http://download.gwas.science/singularity/imputation-protocol-latest.sif</code></a></td>
   </tr>
   <tr>
     <td>Singularity</td>
     <td>2.x</td>
-    <td><code>wget <a href="http://download.gwas.science/singularity/hippocampusgirl-imputation-protocol-latest.simg">http://download.gwas.science/singularity/hippocampusgirl-imputation-protocol-latest.simg</code></a></td>
+    <td><code>wget <a href="http://download.gwas.science/singularity/imputation-protocol-latest.simg">http://download.gwas.science/singularity/imputation-protocol-latest.simg</code></a></td>
   </tr>
   <tr>
     <td>Docker</td>
     <td></td>
-    <td><code>docker pull hippocampusgirl/imputation-protocol:latest</code></td>
+    <td><code>docker pull gwas.science/imputation-protocol:latest</code></td>
   </tr>
 </tbody>
 </table>
@@ -93,12 +93,12 @@ Next, start an interactive shell inside the container using one of the following
 <tbody>
   <tr>
     <td>Singularity</td>
-    <td><code>singularity shell --hostname localhost --bind ${working_directory}:/data hippocampusgirl-imputation-protocol-latest.sif</code></td>
+    <td><code>singularity shell --hostname localhost --bind ${working_directory}:/data imputation-protocol-latest.sif</code></td>
   </tr>
   <tr>
     <td>Docker</td>
     <td>
-        <code>docker run --interactive --tty --volume ${working_directory}:/data hippocampusgirl/imputation-protocol /bin/bash</code>
+        <code>docker run --interactive --tty --volume ${working_directory}:/data gwas.science/imputation-protocol /bin/bash</code>
     </td>
   </tr>
 </tbody>
