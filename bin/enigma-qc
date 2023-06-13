@@ -58,7 +58,7 @@ run_cmd() {
         printf "%s\n" "${cmd}"
     fi
 
-    ("$@")
+    eval "$@"
 
     exit_code=$?
 

@@ -9,56 +9,60 @@ n_cores=$(nproc)
 memory_mb=$(free -m | awk '/^Mem:/{print $2}')
 
 while true; do
-    case "$1" in
-    -n | --n-cores)
-        case "$2" in
-        "") shift 2 ;;
-        *)
-            n_cores=$2
-            shift 2
-            ;;
-        esac
-        ;;
-    -m | --memory-mb)
-        case "$2" in
-        "") shift 2 ;;
-        *)
-            memory_mb=$2
-            shift 2
-            ;;
-        esac
-        ;;
-    --)
-        shift
-        break
-        ;;
+  case "$1" in
+  -n | --n-cores)
+    case "$2" in
+    "") shift 2 ;;
     *)
-        echo "Internal error!"
-        exit 1
-        ;;
+      n_cores=$2
+      shift 2
+      ;;
     esac
+    ;;
+  -m | --memory-mb)
+    case "$2" in
+    "") shift 2 ;;
+    *)
+      memory_mb=$2
+      shift 2
+      ;;
+    esac
+    ;;
+  --)
+    shift
+    break
+    ;;
+  *)
+    echo "Internal error!"
+    exit 1
+    ;;
+  esac
 done
 
 run_cmd() {
-    cmd="$*"
+  command="$*"
 
-    printf '%s\n' --------------------
+  printf '%s\n' --------------------
 
-    if [ "${verbose}" = "1" ]; then
-        printf "%s\n" "${cmd}"
-    fi
+  if [ "${verbose}" = "1" ]; then
+    printf "%s\n" "${command}"
+  fi
 
-    ("$@")
+  eval "${command}"
 
-    EXIT_CODE=$?
+  exit_code=$?
+  if [[ $exit_code -gt 0 ]]; then
+    fail "ERROR: command exited with nonzero status $exit_code"
+  fi
 
-    if [[ $EXIT_CODE -gt 0 ]]; then
-        echo "ERROR: command exited with nonzero status $EXIT_CODE"
-    fi
+  printf '%s\n' --------------------
 
-    printf '%s\n' --------------------
+  return $exit_code
+}
 
-    return $EXIT_CODE
+fail() {
+  printf '%s\n' "$1" >&2
+  exit "${2-1}"
 }
 
 # Code starts here.
@@ -76,22 +80,25 @@ export HADOOP_CACHE_DIR=${HADOOP_DATA_DIR}/cache
 
 # Stop any running processes.
 if [ -d ${HADOOP_DIR} ]; then
-    for pid_file in "${HADOOP_PID_DIR}"/*.pid; do
-        if [ ! -f "${pid_file}" ]; then
-            continue
-        fi
-        if [ -n "$(ps -p "$(cat "${pid_file}")" -o pid=)" ]; then
-            run_cmd "kill $(cat "${pid_file}")"
-        fi
-    done
-    run_cmd rm -rf ${HADOOP_DIR}
+  for pid_file in "${HADOOP_PID_DIR}"/*.pid; do
+    if [ ! -f "${pid_file}" ]; then
+      continue
+    fi
+    if [ -n "$(ps -p "$(cat "${pid_file}")" -o pid=)" ]; then
+      run_cmd "kill $(cat "${pid_file}")"
+    fi
+  done
+  if ! rm -rf ${HADOOP_DIR}; then
+    fail "ERROR: Failed to remove \"${HADOOP_DIR}\". Please check that there are no running processes that are using \"${HADOOP_DIR}\""
+  fi
 fi
 
 run_cmd mkdir -p -v ${HADOOP_LOG_DIR} ${HADOOP_PID_DIR} ${HADOOP_CONF_DIR} ${HADOOP_CACHE_DIR}
 run_cmd cp -rnv ${HADOOP_HOME}/etc/hadoop/* ${HADOOP_CONF_DIR}
 
-port_count=6
-mapfile -t ports < <(python <<EOF
+port_count=14
+mapfile -t ports < <(
+  python <<EOF
 import socket
 sockets = list()
 for i in range(${port_count}):
@@ -201,6 +208,10 @@ run_cmd "cat <<EOF > ${HADOOP_CONF_DIR}/mapred-site.xml
     <name>mapreduce.task.stuck.timeout-ms</name>
     <value>0</value>
   </property>
+  <property>
+    <name>mapreduce.shuffle.port</name>
+    <value>${ports[6]}</value>
+  </property>
 </configuration>
 EOF"
 
@@ -232,6 +243,11 @@ run_cmd "cat <<EOF > ${HADOOP_CONF_DIR}/yarn-site.xml
     <name>yarn.nodemanager.vmem-check-enabled</name>
     <value>false</value>
   </property>
+  <!-- Disable disk space checks -->
+  <property>
+    <name>yarn.nodemanager.disk-health-checker.max-disk-utilization-per-disk-percentage</name>
+    <value>100</value> 
+  </property>
   <property>
     <name>yarn.nodemanager.aux-services</name>
     <value>mapreduce_shuffle</value>
@@ -240,12 +256,40 @@ run_cmd "cat <<EOF > ${HADOOP_CONF_DIR}/yarn-site.xml
     <name>yarn.nodemanager.env-whitelist</name>
     <value>JAVA_HOME,HADOOP_COMMON_HOME,HADOOP_HDFS_HOME,HADOOP_CONF_DIR,CLASSPATH_PREPEND_DISTCACHE,HADOOP_YARN_HOME,HADOOP_HOME,PATH,LANG,TZ,HADOOP_MAPRED_HOME</value>
   </property>
+  <property>
+    <name>yarn.resourcemanager.address</name>
+    <value>localhost:${ports[7]}</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.admin.address</name>
+    <value>localhost:${ports[8]}</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.resource-tracker.address</name>
+    <value>localhost:${ports[9]}</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.scheduler.address</name>
+    <value>localhost:${ports[10]}</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.webapp.address</name>
+    <value>localhost:${ports[11]}</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.webapp.address</name>
+    <value>localhost:${ports[12]}</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.localizer.address</name>
+    <value>localhost:${ports[13]}</value>
+  </property>
 </configuration>
 EOF"
 
 run_cmd "sed \
   -i s/org.apache.hadoop.yarn.util.resource.DefaultResourceCalculator/org.apache.hadoop.yarn.util.resource.DominantResourceCalculator/g \
-  ${HADOOP_CONF_DIR}/capacity-scheduler.xml" 
+  ${HADOOP_CONF_DIR}/capacity-scheduler.xml"
 
 run_cmd "echo localhost > ${HADOOP_CONF_DIR}/masters"
 run_cmd "cat <<EOF >> ${HADOOP_CONF_DIR}/hadoop-env.sh
@@ -261,8 +305,8 @@ export JAVA_HOME=${JAVA_HOME}
 EOF"
 
 if [ -d ${HADOOP_DATA_DIR} ]; then
-    run_cmd rm -rf ${HADOOP_DATA_DIR}
-    run_cmd mkdir -p -v ${HADOOP_DATA_DIR} ${HADOOP_CACHE_DIR}
+  run_cmd rm -rf ${HADOOP_DATA_DIR}
+  run_cmd mkdir -p -v ${HADOOP_DATA_DIR} ${HADOOP_CACHE_DIR}
 fi
 
 run_cmd hdfs namenode -format -nonInteractive -force
@@ -272,16 +316,16 @@ run_cmd ${HADOOP_HOME}/bin/hdfs --config "${HADOOP_CONF_DIR}" --daemon start sec
 run_cmd ${HADOOP_HOME}/bin/hdfs --config "${HADOOP_CONF_DIR}" --daemon start datanode
 
 if [ -z "$USER" ]; then
-    USER=$(whoami)
+  USER=$(whoami)
 fi
 if [[ $(id -u) -eq 0 ]]; then # running as root
-    export HADOOP_JOBTRACKER_USER="mapred"
-    export HADOOP_TASKTRACKER_USER="mapred"
+  export HADOOP_JOBTRACKER_USER="mapred"
+  export HADOOP_TASKTRACKER_USER="mapred"
 
-    run_cmd chmod -R ugo+rw ${HADOOP_LOG_DIR} ${HADOOP_PID_DIR} ${HADOOP_CONF_DIR} ${HADOOP_DATA_DIR} # need to allow non-root users to access
+  run_cmd chmod -R ugo+rw ${HADOOP_LOG_DIR} ${HADOOP_PID_DIR} ${HADOOP_CONF_DIR} ${HADOOP_DATA_DIR} # need to allow non-root users to access
 else
-    export HADOOP_JOBTRACKER_USER=${USER}
-    export HADOOP_TASKTRACKER_USER=${USER}
+  export HADOOP_JOBTRACKER_USER=${USER}
+  export HADOOP_TASKTRACKER_USER=${USER}
 fi
 
 run_cmd hadoop fs -chmod -R 1777 /

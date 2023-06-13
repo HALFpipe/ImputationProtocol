@@ -3,15 +3,15 @@
 verbose=1
 
 run_cmd() {
-    cmd="$*"
+    command="$*"
 
     printf '%s\n' --------------------
 
     if [ "${verbose}" = "1" ]; then
-        printf "%s\n" "${cmd}"
+        printf "%s\n" "${command}"
     fi
 
-    ("$@")
+    eval "${command}"
 
     exit_code=$?
 
