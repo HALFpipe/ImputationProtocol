@@ -5,22 +5,17 @@ RUN cd /src/extract-all \
     && sbt assembly
 
 FROM apache/hadoop:3
-
 USER root
-
-# Install R and required packages for Cloudgene.
-RUN yum update -y \
-    && yum install -y R
-RUN R -e 'install.packages(c("knitr", "markdown", "rmarkdown", "ggplot2", "data.table"), repos = "http://cran.rstudio.com")'
 
 # Install Cloudgene.
 ENV CLOUDGENE_VERSION=2.5.7
 RUN mkdir /opt/cloudgene \
     && cd /opt/cloudgene \
     && curl --silent install.cloudgene.io | bash -s ${CLOUDGENE_VERSION}
-ENV PATH="/opt/cloudgene:${PATH}"
+ENV PATH="/opt/cloudgene:/usr/local/mambaforge/bin:${PATH}" \
+    CPATH="/usr/local/mambaforge/include:${CPATH}"
 
-# Download data.
+# Download data
 RUN mkdir -p -v /localdata/mds && \
     for file_name in HM3_b37.bed HM3_b37.bim HM3_b37.fam; do \
     wget \
@@ -37,40 +32,37 @@ RUN mkdir -p -v /localdata/liftover && \
 RUN mkdir -p -v /localdata/imputationserver && \
     wget --progress=dot:giga -O "/localdata/imputationserver/1000genomes-phase3.zip" "https://imputationserver.sph.umich.edu/static/downloads/releases/1000genomes-phase3-3.0.0.zip"
 
-# Install additional software.
-RUN wget --progress=dot:mega -O "/tmp/plink_linux.zip" "https://s3.amazonaws.com/plink1-assets/plink_linux_x86_64_20210606.zip" && \
-    unzip /tmp/plink_linux.zip plink -d /usr/local/bin && \
-    wget --progress=dot:mega -O "/tmp/plink2_linux.zip" "https://s3.amazonaws.com/plink2-assets/alpha2/plink2_linux_x86_64.zip" && \
-    unzip /tmp/plink2_linux.zip plink2 -d /usr/local/bin && \
-    wget --progress=dot:giga -O "/tmp/miniconda.sh" "https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh" && \
-    bash /tmp/miniconda.sh -b -p /usr/local/miniconda && \
-    wget --progress=dot:mega -O "/tmp/calibrate.tar.gz" "https://cran.r-project.org/src/contrib/Archive/calibrate/calibrate_1.7.2.tar.gz" && \
-    R CMD INSTALL /tmp/calibrate.tar.gz && \
-    wget --progress=dot:mega -O "/usr/local/bin/liftOver" "https://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/liftOver" && \
+# Install additional software
+RUN wget --progress=dot:giga -O "/tmp/conda.sh" "https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-$(uname)-$(uname -m).sh" && \
+    bash /tmp/conda.sh -b -p /usr/local/mambaforge && \
+    conda config --system --append channels "bioconda" && \
+    sync && \
+    mamba clean --yes --all --force-pkgs-dirs && \
     rm -rf /tmp/* && sync
 
-ENV PATH="/usr/local/miniconda/bin:${PATH}" \
-    CPATH="/usr/local/miniconda/include:${CPATH}"
-
-RUN conda config --add channels bioconda && \
-    conda install --yes \
+RUN mamba install --yes \
     "p7zip>=15.09" \
+    "zstd" \
     "parallel" \
-    "perl-vcftools-vcf>=0.1.16" \
     "python>=3.11" \
+    "r-calibrate" \
+    "r-knitr" \
+    "r-markdown" \
+    "r-rmarkdown" \
+    "r-ggplot2" \
+    "r-data.table" \
+    "perl-vcftools-vcf>=0.1.16" \
+    "plink" \
+    "plink2" \
     "tabix>=1.11" \
-    "zstd" && \
+    "ucsc-liftover" && \
     sync && \
-    chmod -R a+rX /usr/local/miniconda && \
+    mamba clean --yes --all --force-pkgs-dirs && \
     sync && \
-    chmod +x /usr/local/bin/* /usr/local/miniconda/bin/* && \
-    sync && \
-    conda clean --yes --all && \
-    sync && \
-    rm -rf ~/.conda ~/.cache/pip/* && \
+    find /usr/local/mambaforge/ -follow -type f -name "*.a" -delete && \
     sync
 
-# Install scripts.
+# Install scripts
 COPY bin/* /usr/local/bin/
 COPY --from=builder /src/extract-all/target/scala-*/extract-all.jar /usr/local/bin/extract-all.jar
 
