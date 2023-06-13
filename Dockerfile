@@ -45,6 +45,7 @@ RUN mamba install --yes \
     "zstd" \
     "parallel" \
     "python>=3.11" \
+    "r-base" \
     "r-calibrate" \
     "r-knitr" \
     "r-markdown" \
