@@ -28,11 +28,13 @@ RUN mkdir /opt/cloudgene \
     && cd /opt/cloudgene \
     && curl --silent install.cloudgene.io | bash -s ${CLOUDGENE_VERSION}
 ENV PATH="/opt/cloudgene:/usr/local/mambaforge/bin:${PATH}" \
-    CPATH="/usr/local/mambaforge/include:${CPATH}" \
-    LD_LIBRARY_PATH="/usr/local/mambaforge/lib:${LD_LIBRARY_PATH}"
+    CPATH="/usr/local/mambaforge/include:${CPATH}" 
 
 # Install additional software
-# and make sure `which` is available at `/usr/bin/which/ as per https://github.com/ContinuumIO/anaconda-issues/issues/11133
+# and make sure `which` is available at `/usr/bin/which/ as per 
+# https://github.com/ContinuumIO/anaconda-issues/issues/11133
+# and ensure that thew newly installed shared libraries are available 
+# to all programs by updating `ldconfig`
 RUN wget --progress=dot:giga -O "/tmp/conda.sh" "https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-$(uname)-$(uname -m).sh" && \
     bash /tmp/conda.sh -b -p /usr/local/mambaforge && \
     rm -rf /tmp/* && \
@@ -63,6 +65,10 @@ RUN wget --progress=dot:giga -O "/tmp/conda.sh" "https://github.com/conda-forge/
     find /usr/local/mambaforge/ -follow -type f -name "*.a" -delete && \
     sync && \
     ln -s /usr/local/mambaforge/bin/which /usr/bin/which && \
+    sync && \
+    echo /usr/local/mambaforge/lib > /etc/ld.so.conf.d/mambaforge.conf && \
+    sync && \
+    ldconfig && \
     sync
 
 # Install scripts
