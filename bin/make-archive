@@ -4,7 +4,7 @@ OPTS=$(getopt -o s:p:z --long study-name:,password:,zstd-compress -n 'make-archi
 eval set -- "$OPTS"
 
 verbose=1
-zsdt_compress=0
+zstd_compress=0
 password="password"
 
 while true; do
@@ -19,7 +19,7 @@ while true; do
         esac
         ;;
     -z | --zstd-compress)
-        zsdt_compress=1
+        zstd_compress=1
         shift 1
         ;;
     -p | --password)
@@ -96,7 +96,7 @@ extract_and_add() {
 
     find "${tmp_dir}" -type f -name "*.dose.vcf.gz" -print0 |
         while IFS= read -r -d '' v; do
-            if [[ ${zsdt_compress} -eq 1 ]]; then
+            if [[ ${zstd_compress} -eq 1 ]]; then
                 # Apply zstd compression
                 bgzip -c -d "${v}" | zstd -T0 -B0 -f --ultra -22 -o "${tmp_dir}/$(basename "${v}" .gz).zst"
                 run_cmd rm -f "${v}"
@@ -125,7 +125,9 @@ else
 fi
 
 add_files "${study_output_directory}/job.txt" "${study_output_directory}/std.out"
-add_files "$(find "${study_output_directory}"/{qcreport,statisticDir,logfile} -type f)"
+
+# shellcheck disable=SC2046
+add_files $(find "${study_output_directory}"/{qcreport,statisticDir,logfile} -type f)
 
 find "${study_output_directory}/local" -type f -name "chr_*.zip" -print0 |
     sort --zero-terminated --version-sort |
