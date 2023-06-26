@@ -88,12 +88,12 @@ Next, start an interactive shell inside the container using one of the following
 <tbody>
   <tr>
     <td>Singularity</td>
-    <td><code>singularity shell --hostname localhost --bind ${working_directory}:/data imputation-protocol-latest.sif</code></td>
+    <td><code>singularity shell --hostname localhost --bind ${working_directory}:/data --bind /tmp imputation-protocol-latest.sif</code></td>
   </tr>
   <tr>
     <td>Docker</td>
     <td>
-        <code>docker run --interactive --tty --volume ${working_directory}:/data gwas.science/imputation-protocol /bin/bash</code>
+        <code>docker run --interactive --tty --volume ${working_directory}:/data --bind /tmp gwas.science/imputation-protocol /bin/bash</code>
     </td>
   </tr>
 </tbody>
@@ -304,3 +304,9 @@ rm -rf /data/hadoop
 setup-hadoop --n-cores 8
 setup-imputationserver
 ```
+
+### Error `Application or file imputationserver not found`
+
+Please delete the `/data/cloudgene` folder inside the container and run `setup-imputationserver` again.
+
+
