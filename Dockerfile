@@ -23,7 +23,7 @@ RUN mkdir -p -v /localdata/imputationserver && \
     wget --progress=dot:giga -O "/localdata/imputationserver/1000genomes-phase3.zip" "https://imputationserver.sph.umich.edu/static/downloads/releases/1000genomes-phase3-3.0.0.zip"
 
 # Install Cloudgene.
-ENV CLOUDGENE_VERSION=2.5.7
+ENV CLOUDGENE_VERSION=2.6.3
 RUN mkdir /opt/cloudgene \
     && cd /opt/cloudgene \
     && curl --silent install.cloudgene.io | bash -s ${CLOUDGENE_VERSION}

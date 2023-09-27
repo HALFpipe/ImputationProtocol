@@ -62,7 +62,7 @@ if ! run_cmd cloudgene verify-cluster; then
     fail "ERROR: Cloudgene could not connect to the Hadoop cluster. Please check if \"setup-hadoop\" was run successfully"
 fi
 
-imputationserver_version="1.7.3"
+imputationserver_version="1.7.4"
 run_cmd wget --continue \
     -O "/data/downloads/imputationserver-${imputationserver_version}.zip" \
     "https://github.com/genepi/imputationserver/releases/download/v${imputationserver_version}/imputationserver.zip"
