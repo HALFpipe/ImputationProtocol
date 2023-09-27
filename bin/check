@@ -1,25 +1,22 @@
 #!/usr/bin/env python3
 
 from __future__ import annotations
-from abc import ABC, abstractmethod
-from typing import Literal
 
-from dataclasses import dataclass, field
-from collections import defaultdict
-
-import re
-from argparse import ArgumentParser
-import logging
-
-from glob import glob
-from pathlib import Path
-from tempfile import TemporaryDirectory
 import gzip
-
-from subprocess import call
-from multiprocessing.dummy import Pool
-
+import logging
+import re
+from abc import ABC, abstractmethod
+from argparse import ArgumentParser, Namespace
+from collections import defaultdict
+from dataclasses import dataclass, field
+from glob import glob
 from math import isclose
+
+# from multiprocessing.dummy import Pool
+from pathlib import Path
+from subprocess import call
+from tempfile import TemporaryDirectory
+from typing import Literal
 
 logger = logging.getLogger("check")
 
@@ -29,7 +26,7 @@ chromosome_regex = re.compile(r"chr(?P<chromosome>\d+|X|Y)")
 chain_file_regex = re.compile(r"(?P<version>hg\d+)ToHg19.over.chain.gz")
 
 
-def verbose_call(command: list[str]):
+def verbose_call(command: list[str]) -> None:
     logger.info(f"Running command line {command}")
     call(command)
 
@@ -50,7 +47,7 @@ def parse_chromosome(chromosome_str: str) -> Chromosome | None:
     return chromosome
 
 
-@dataclass
+@dataclass(frozen=True)
 class MatchResult:
     variant: Variant | None = None
     messages: list[str] = field(default_factory=list)
@@ -191,7 +188,6 @@ class Variant:
         filled.allele_b = other.allele_b
 
         if len(filled.allele_a) > len(filled.allele_b):
-
             # filled.allele_a is the insertion
 
             if self.allele_a == "I":
@@ -207,7 +203,6 @@ class Variant:
                     return MatchResult(variant=filled)
 
         else:
-
             # filled.allele_b is the insertion
 
             if self.allele_a == "I":
@@ -285,8 +280,7 @@ def read_legend_file(
 
     if chromosome is None:
         logger.info(
-            f"Skipping chromosome {chromosome_str} "
-            f'legend file "{legend_file}"'
+            f"Skipping chromosome {chromosome_str} " f'legend file "{legend_file}"'
         )
         return None
 
@@ -494,13 +488,10 @@ class FlipCommand(CommandBase):
         prefix = f"{bfile}.check-flip"
 
         counters_file = f"{prefix}.counters.txt"
-        counters_lines = sorted(
-            self.counters.items(), key=lambda item: item[-1]
-        )
+        counters_lines = sorted(self.counters.items(), key=lambda item: item[-1])
         with open(counters_file, "wt") as counters_file_handle:
             counters_file_handle.write(
-                "\n".join(f"{key}\t{value:d}" for key, value in counters_lines)
-                + "\n"
+                "\n".join(f"{key}\t{value:d}" for key, value in counters_lines) + "\n"
             )
 
         exclude_file = f"{prefix}.snp.exclude.txt"
@@ -513,9 +504,7 @@ class FlipCommand(CommandBase):
 
         update_alleles_file = f"{prefix}.snp.update_alleles.txt"
         with open(update_alleles_file, "wt") as ua_file_handle:
-            ua_file_handle.write(
-                "\n".join(map("\t".join, self.update_alleles)) + "\n"
-            )
+            ua_file_handle.write("\n".join(map("\t".join, self.update_alleles)) + "\n")
 
         # apply
         verbose_call(
@@ -568,16 +557,12 @@ def read_lift_over_bed_file(file: str):
 
             chromosome_match = chromosome_regex.search(chromosome_str)
             if chromosome_match is None:
-                logger.debug(
-                    f"Could not read chromosome of lifted variant {id}"
-                )
+                logger.debug(f"Could not read chromosome of lifted variant {id}")
                 continue
 
             chromosome = parse_chromosome(chromosome_match.group("chromosome"))
             if chromosome is None:
-                logger.warning(
-                    f"Invalid chromosome {chromosome_str} variant {id}"
-                )
+                logger.warning(f"Invalid chromosome {chromosome_str} variant {id}")
                 continue
 
             position = int(position_str)
@@ -617,9 +602,7 @@ def lift_over(sample_file: str, chain_file: str) -> tuple[str, list[Variant]]:
 
 
 class Hg19Command(CommandBase):
-    def __init__(
-        self, sample_variants: list[Variant], chain_files: list[str]
-    ) -> None:
+    def __init__(self, sample_variants: list[Variant], chain_files: list[str]) -> None:
         super().__init__(sample_variants)
 
         self.overlap_counts: dict[str, int] = defaultdict(int)
@@ -629,8 +612,7 @@ class Hg19Command(CommandBase):
             sample_file = str(tmp_path / "sample_variants.bed")
             write_lift_over_bed_file(sample_file, sample_variants)
             self.lifted_variants = dict(
-                lift_over(sample_file, chain_file)
-                for chain_file in chain_files
+                lift_over(sample_file, chain_file) for chain_file in chain_files
             )
             self.lifted_variants["hg19"] = sample_variants
 
@@ -673,7 +655,12 @@ class Hg19Command(CommandBase):
             for version, variants in self.lifted_variants.items()
         }
 
-        version, _ = max(overlap.items(), key=lambda t: t[1])
+        version, max_overlap = max(overlap.items(), key=lambda t: t[1])
+
+        if isclose(max_overlap, 0):
+            raise ValueError(
+                "The data has no overlap with any of the available reference genomes"
+            )
 
         logger.info(
             f'Sample is in "{version}" considering the overlap with the '
@@ -681,8 +668,6 @@ class Hg19Command(CommandBase):
         )
 
         prefix = f"{bfile}.hg19"
-
-        max_overlap = max(overlap.values())
         if isclose(overlap["hg19"], max_overlap):
             logger.info("Is already hg19")
             verbose_call(
@@ -697,14 +682,8 @@ class Hg19Command(CommandBase):
             )
             return
 
-        lifted_variant_ids = frozenset(
-            v.id for v in self.lifted_variants[version]
-        )
-        exclude = [
-            v.id
-            for v in self.sample_variants
-            if v.id not in lifted_variant_ids
-        ]
+        lifted_variant_ids = frozenset(v.id for v in self.lifted_variants[version])
+        exclude = [v.id for v in self.sample_variants if v.id not in lifted_variant_ids]
 
         exclude_file = f"{prefix}.snp.exclude.txt"
         with open(exclude_file, "wt") as exclude_file_handle:
@@ -712,9 +691,9 @@ class Hg19Command(CommandBase):
 
         new_variants = self.lifted_variants[version]
 
-        chromosomes = sorted(frozenset(
-            str(variant.chromosome_number) for variant in new_variants
-        ))
+        chromosomes = sorted(
+            frozenset(str(variant.chromosome_number) for variant in new_variants)
+        )
 
         verbose_call(
             [
@@ -744,9 +723,9 @@ class Hg19Command(CommandBase):
 Command = Hg19Command | FlipCommand
 
 
-if __name__ == "__main__":
-    parser = ArgumentParser()
-    subparsers = parser.add_subparsers()
+def parse_arguments(argv: list[str]) -> Namespace:
+    argument_parser = ArgumentParser()
+    subparsers = argument_parser.add_subparsers()
 
     flip_subparser = subparsers.add_parser("flip")
     flip_subparser.set_defaults(command=FlipCommand)
@@ -765,15 +744,15 @@ if __name__ == "__main__":
         "--chain-files", action="extend", nargs="+", type=str, required=False
     )
 
-    parser.add_argument("--log-level", type=str, default="INFO")
+    argument_parser.add_argument("--log-level", type=str, default="INFO")
+    argument_parser.add_argument("--debug", action="store_true", default=False)
 
-    args = parser.parse_args()
+    return argument_parser.parse_args(argv)
 
-    logging.basicConfig(level=args.log_level)
 
-    # normalize args
-
-    legend_files = args.legend_files
+def run(arguments: Namespace) -> None:
+    # Normalize args
+    legend_files = arguments.legend_files
     if legend_files is None or len(legend_files) == 0:
         legend_files = glob(
             "/data/cloudgene/apps/1000g-phase-3-v5/*/"
@@ -786,10 +765,9 @@ if __name__ == "__main__":
                 "correctly or manually specify the legend files with the "
                 '"--legend-files" argument'
             )
-
     chain_files = None
-    if hasattr(args, "chain_files"):
-        chain_files = args.chain_files
+    if hasattr(arguments, "chain_files"):
+        chain_files = arguments.chain_files
         if chain_files is None or len(chain_files) == 0:
             chain_files = glob("/localdata/liftover/hg*ToHg19.over.chain.gz")
             if len(chain_files) == 0:
@@ -799,32 +777,52 @@ if __name__ == "__main__":
                     '"--chain-files" argument'
                 )
 
-    # read sample
-    sample_variants = read_bim_file(args.bfile)
-    sample_chromosomes = frozenset(
-        variant.chromosome for variant in sample_variants
-    )
+    # Read sample
+    sample_variants = read_bim_file(arguments.bfile)
+    sample_chromosomes = frozenset(variant.chromosome for variant in sample_variants)
 
-    # instantiate commands
-    command = args.command(sample_variants, chain_files)
+    # Instantiate commands
+    command = arguments.command(sample_variants, chain_files)
 
-    # read reference
+    # Read reference
     reference_chromosomes: set[Chromosome] = set()
-    with Pool() as pool:
-        for result in pool.imap_unordered(read_legend_file, legend_files):
-            if result is None:
-                continue
+    # with Pool() as pool:pool.imap_unordered
+    for result in map(read_legend_file, legend_files):
+        if result is None:
+            continue
 
-            chromosome, reference_variants = result
-            reference_chromosomes.add(chromosome)
+        chromosome, reference_variants = result
+        reference_chromosomes.add(chromosome)
 
-            command.map(chromosome, reference_variants)
+        command.map(chromosome, reference_variants)
 
     if not sample_chromosomes.issubset(reference_chromosomes):
         missing_chromosomes = sample_chromosomes - reference_chromosomes
         logger.warning(
-            "Missing reference data for sample chromosomes "
-            f"{missing_chromosomes}. "
+            "Missing reference data for sample chromosomes " f"{missing_chromosomes}. "
         )
 
-    command.reduce(args.bfile)
+    command.reduce(arguments.bfile)
+
+
+def main(argv: list[str]) -> None:
+    arguments = parse_arguments(argv)
+    logging.basicConfig(
+        level=arguments.log_level,
+        format="%(asctime)s [%(levelname)8s] %(funcName)s: "
+        "%(message)s (%(filename)s:%(lineno)s)",
+    )
+    try:
+        run(arguments)
+    except Exception as e:
+        logger.exception("Exception: %s", e, exc_info=True)
+        if arguments.debug:
+            import pdb
+
+            pdb.post_mortem()
+
+
+if __name__ == "__main__":
+    import sys
+
+    main(sys.argv[1:])
