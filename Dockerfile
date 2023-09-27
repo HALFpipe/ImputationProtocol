@@ -58,7 +58,7 @@ RUN wget --progress=dot:giga -O "/tmp/conda.sh" "https://github.com/conda-forge/
     "plink2" \
     "tabix>=1.11" \
     "ucsc-liftover" \
-    "less" \
+    "m2-less" \
     "which" && \
     sync && \
     mamba clean --yes --all --force-pkgs-dirs && \
