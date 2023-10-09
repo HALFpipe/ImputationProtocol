@@ -1,8 +1,8 @@
 FROM sbtscala/scala-sbt:eclipse-temurin-jammy-19.0.1_10_1.9.0_3.2.2 as builder
 
 COPY src/extract-all /src/extract-all
-RUN cd /src/extract-all \
-    && sbt assembly
+RUN cd /src/extract-all && \
+    sbt assembly
 
 FROM apache/hadoop:3
 USER root
@@ -22,11 +22,18 @@ RUN mkdir -p -v /localdata/liftover && \
 RUN mkdir -p -v /localdata/imputationserver && \
     wget --progress=dot:giga -O "/localdata/imputationserver/1000genomes-phase3.zip" "https://imputationserver.sph.umich.edu/static/downloads/releases/1000genomes-phase3-3.0.0.zip"
 
+RUN yum install -y less which && \
+    yum clean all -y && \
+    sync && \
+    rm -rf /var/cache/yum && \
+    rm -rf /tmp/* && \
+    sync
+
 # Install Cloudgene.
 ENV CLOUDGENE_VERSION=2.6.3
-RUN mkdir /opt/cloudgene \
-    && cd /opt/cloudgene \
-    && curl --silent install.cloudgene.io | bash -s ${CLOUDGENE_VERSION}
+RUN mkdir /opt/cloudgene && \
+    cd /opt/cloudgene && \
+    curl --silent install.cloudgene.io | bash -s ${CLOUDGENE_VERSION}
 ENV PATH="/opt/cloudgene:/usr/local/mambaforge/bin:${PATH}" \
     CPATH="/usr/local/mambaforge/include:${CPATH}" 
 
@@ -57,9 +64,7 @@ RUN wget --progress=dot:giga -O "/tmp/conda.sh" "https://github.com/conda-forge/
     "plink" \
     "plink2" \
     "tabix>=1.11" \
-    "ucsc-liftover" \
-    "m2-less" \
-    "which" && \
+    "ucsc-liftover" && \
     sync && \
     mamba clean --yes --all --force-pkgs-dirs && \
     sync && \
