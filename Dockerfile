@@ -70,8 +70,6 @@ RUN wget --progress=dot:giga -O "/tmp/conda.sh" "https://github.com/conda-forge/
     sync && \
     find /usr/local/mambaforge/ -follow -type f -name "*.a" -delete && \
     sync && \
-    ln -s /usr/local/mambaforge/bin/which /usr/bin/which && \
-    sync && \
     echo /usr/local/mambaforge/lib > /etc/ld.so.conf.d/mambaforge.conf && \
     sync && \
     ldconfig && \
