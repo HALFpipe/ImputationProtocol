@@ -61,11 +61,11 @@ run_cmd() {
     fi
 
     eval "${command}"
-
     exit_code=$?
 
     if [[ ${exit_code} -gt 0 ]]; then
-        echo "ERROR: command exited with nonzero status ${exit_code}"
+        echo "ERROR: command \"$1\" exited with nonzero status ${exit_code}" >&2
+        exit ${exit_code}
     fi
 
     printf '%s\n' --------------------
@@ -79,6 +79,7 @@ add_files() {
     if [[ $# -eq 0 ]]; then
         return
     fi
+    echo Adding files "$@"
     run_cmd 7z a "${archive}" "$@"
 }
 
@@ -107,7 +108,8 @@ extract_and_add() {
         done
 
     # Add extracted files to archive
-    add_files "$(find "${tmp_dir}" -type f)"
+    # shellcheck disable=SC2046
+    add_files $(find "${tmp_dir}" -type f)
 
     # Remove temporary directory
     run_cmd rm -rf "${tmp_dir}"
