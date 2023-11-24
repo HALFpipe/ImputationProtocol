@@ -49,6 +49,7 @@ run_cmd() {
         printf "%s\n" "${cmd}"
     fi
 
+    # shellcheck disable=SC2294
     eval "$@"
 
     exit_code=$?
