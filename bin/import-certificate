@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+
+options=$(getopt -o h: --long host: -n 'import-certificate' -- "$@")
+eval set -- "${options}"
+
+verbose=1
+while true; do
+    case "$1" in
+    -h | --host)
+        case "$2" in
+        "") shift 2 ;;
+        *)
+            host=$2
+            shift 2
+            ;;
+        esac
+        ;;
+    --)
+        shift
+        break
+        ;;
+    *)
+        echo "Internal error!"
+        exit 1
+        ;;
+    esac
+done
+
+fail() {
+    printf '%s\n' "$1" >&2
+    exit "${2-1}"
+}
+
+run_cmd() {
+    cmd="$*"
+
+    printf '%s\n' --------------------
+
+    if [ "${verbose}" = "1" ]; then
+        printf "%s\n" "${cmd}"
+    fi
+
+    # shellcheck disable=SC2294
+    eval "$@"
+
+    exit_code=$?
+
+    if [[ ${exit_code} -gt 0 ]]; then
+        echo "ERROR: command exited with nonzero status ${exit_code}"
+    fi
+
+    printf '%s\n' --------------------
+
+    return ${exit_code}
+}
+
+if [ -z "${host}" ]; then
+    fail "Missing required --host parameter"
+fi
+if [ -z "${JAVA_HOME}" ]; then
+    fail "JAVA_HOME is not set"
+fi
+
+# Based on https://stackoverflow.com/questions/6908948/java-sun-security-provider-certpath-suncertpathbuilderexception-unable-to-find
+
+certficate_path=${JAVA_HOME}/lib/security/cacerts
+if [ ! -f "${certficate_path}" ]; then
+    fail "Certificate file ${certficate_path} does not exist"
+fi
+
+certificate_text="/tmp/${host}.$$.txt"
+run_cmd "openssl s_client -connect \"${host}:443\" -prexit 2>/dev/null > ${certificate_text}"
+
+certificate_file="/tmp/${host}.$$.crt"
+run_cmd openssl x509 \
+    -in "${certificate_text}" \
+    -out "${certificate_file}"
+
+run_cmd keytool \
+    -importcert \
+    -noprompt \
+    -trustcacerts \
+    -file "${certificate_file}" \
+    -alias "${host}" \
+    -keystore "${certficate_path}" \
+    -storepass changeit
+    
+run_cmd rm "${certificate_text}" "${certificate_file}"
