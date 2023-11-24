@@ -61,15 +61,9 @@ EOF"
 if ! run_cmd cloudgene verify-cluster; then
     fail "ERROR: Cloudgene could not connect to the Hadoop cluster. Please check if \"setup-hadoop\" was run successfully"
 fi
-
-imputationserver_version="1.7.4"
-run_cmd wget --continue \
-    -O "/data/downloads/imputationserver-${imputationserver_version}.zip" \
-    "https://github.com/genepi/imputationserver/releases/download/v${imputationserver_version}/imputationserver.zip"
-if ! run_cmd cloudgene install /data/downloads/imputationserver-${imputationserver_version}.zip; then
+if ! run_cmd cloudgene install /localdata/imputationserver.zip; then
     fail "ERROR: Cloudgene could not install the imputation server"
 fi
-
 if ! run_cmd cloudgene install /localdata/imputationserver/1000genomes-phase3.zip; then
     fail "ERROR: Cloudgene could not install the reference genome"
 fi

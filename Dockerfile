@@ -4,7 +4,7 @@ COPY src/extract-all /src/extract-all
 RUN cd /src/extract-all && \
     sbt assembly
 
-FROM apache/hadoop:3
+FROM apache/hadoop:3 as downloader
 USER root
 
 # Download data
@@ -20,7 +20,11 @@ RUN mkdir -p -v /localdata/liftover && \
     wget --progress=dot:mega -O "/localdata/liftover/${file_name}" "https://hgdownload.soe.ucsc.edu/goldenPath/${genome_reference}/liftOver/${file_name}"; \
     done
 RUN mkdir -p -v /localdata/imputationserver && \
-    wget --progress=dot:giga -O "/localdata/imputationserver/1000genomes-phase3.zip" "https://imputationserver.sph.umich.edu/static/downloads/releases/1000genomes-phase3-3.0.0.zip"
+    wget --progress=dot:mega -O "/localdata/imputationserver.zip" "https://github.com/genepi/imputationserver/releases/download/v1.7.4/imputationserver.zip" && \
+    wget --progress=dot:giga -O "/localdata/1000genomes-phase3.zip" "https://imputationserver.sph.umich.edu/static/downloads/releases/1000genomes-phase3-3.0.0.zip"
+
+FROM apache/hadoop:3
+USER root
 
 RUN yum install -y less which && \
     yum clean all -y && \
@@ -75,8 +79,9 @@ RUN wget --progress=dot:giga -O "/tmp/conda.sh" "https://github.com/conda-forge/
     ldconfig && \
     sync
 
-# Install scripts
-COPY bin/* /usr/local/bin/
+# Install
+COPY --from=downloader /localdata /localdata
 COPY --from=builder /src/extract-all/target/scala-*/extract-all.jar /usr/local/bin/extract-all.jar
+COPY bin/* /usr/local/bin/
 
 CMD ["/bin/bash"]
