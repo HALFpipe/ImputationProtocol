@@ -86,7 +86,6 @@ run_cmd plink --bfile "${REFERENCE}" --extract "local.snplist.txt" --make-bed --
 run_cmd plink --bfile "local" --bmerge "external.bed" "external.bim" "external.fam" --make-bed --noweb --out "merge"
 
 if [ -f "merge-merge.missnp" ]; then
-
     run_cmd plink --bfile "local" --flip "merge-merge.missnp" --make-bed --noweb --out "flipped"
     run_cmd mv "merge-merge.missnp" "merge-merge.flipped.missnp"
 
@@ -94,16 +93,12 @@ if [ -f "merge-merge.missnp" ]; then
 fi
 
 if [ -f "merge-merge.missnp" ]; then
-
     run_cmd plink --bfile "flipped" --exclude "merge-merge.missnp" --make-bed --noweb --out "no-missnp"
-
     run_cmd plink --bfile "no-missnp" --bmerge "external.bed" "external.bim" "external.fam" --make-bed --noweb --out "merge"
-
 fi
 
 run_cmd plink --bfile "merge" --cluster --mind "0.05" --mds-plot "4" --extract "local.snplist.txt" --noweb --out "HM3_b37mds"
-
-run_cmd "awk 'BEGIN{OFS=\",\"}; {print \$1, \$2, \$3, \$4, \$5, \$6, \$7}' HM3_b37mds.mds >> HM3_b37mds2R.mds.csv"
+run_cmd "awk 'BEGIN{OFS=\",\"}; {print \$1, \$2, \$3, \$4, \$5, \$6, \$7}' HM3_b37mds.mds > HM3_b37mds2R.mds.csv"
 
 run_cmd "Rscript - <<EOF
 mds.cluster = read.csv(\"HM3_b37mds2R.mds.csv\", header=T)
