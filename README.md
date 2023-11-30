@@ -64,9 +64,6 @@ mkdir -p -v ${working_directory}/{raw,mds,qc}
 <p>
 Copy your raw data to the <code>raw</code> subfolder of the working directory. If you have multiple <code>.bed</code> file sets that you want to process, copy them all.
 </p>
-<p>
-Copy your raw data to the <code>raw</code> subfolder of the working directory. If you have multiple <code>.bed</code> file sets that you want to process, copy them all.
-</p>
 
 ```bash
 cp -v my_sample.bed my_sample.bim my_sample.fam ${working_directory}/raw
@@ -77,6 +74,9 @@ cp -v my_sample.bed my_sample.bim my_sample.fam ${working_directory}/raw
 <li>
 <p>
 Next, start an interactive shell inside the container using one of the following commands.
+</p>
+<p>
+The <code>--bind</code> (Singularity) or <code>--volume</code> (Docker) parameters are used to make the working directory available inside the container at the path <code>/data</code>. This means that in all subsequent commands, we can use the path <code>/data</code> to refer to the working directory.
 </p>
 <table>
 <thead>
@@ -133,19 +133,25 @@ If something important goes wrong, then you will usually see a clear error messa
 Next, go to <code>/data/mds</code>, and run the script <code>enigma-mds</code> for your <code>.bed</code> file set. The script creates the files <code>mdsplot.pdf</code> and <code>HM3_b37mds2R.mds.csv</code>, which are summary statistics that you will need to share with your working group as per the <a href="https://enigma.ini.usc.edu/wp-content/uploads/2020/02/ENIGMA-1KGP_p3v5-Cookbook_20170713.pdf">ENIGMA Imputation Protocol</a>.
 </p>
 <p>
-If you have multiple <code>.bed</code> file sets, you should run the script in a separate folder for each one. The script always outputs to the current folder, and may overwrite the results when you re-run it. 
+Note that this script will create all output files in the current folder, so you should use <code>cd</code> to change to the <code>/data/mds/sample</code> folder before running it.
 </p>
 <p>
-The first example is for just one dataset.
+If you have multiple <code>.bed</code> file sets, you should run the script in a separate folder for each one. Otherwise the script may overwrite previous results when you run it again. 
+</p>
+
+<p>
+If you have just one dataset:
 </p>
 
 ```bash
-cd /data/mds
+mkdir /data/mds/sample
+
+cd /data/mds/sample
 enigma-mds --bfile ../raw/my_sample
 ```
 
 <p>
-And, second, for multiple datasets.
+Alternatively, for multiple datasets:
 </p>
 
 ```bash
@@ -169,16 +175,24 @@ Next, go to <code>/data/qc</code>, and run <code>enigma-qc</code> for your <code
 The script places intermediate files in the current folder, and the final <code>.vcf.gz</code> files in <code>/data/input/my_sample</code> where they can be accessed by the <code>imputationserver</code> script in the next step.
 </p>
 <p>
+Note that this script will create some output files in the current folder, so you should use <code>cd</code> to change to the <code>/data/qc/sample</code> folder (or similar) before running it.
+</p>
+<p>
 The input path is hard-coded, because the imputation server is quite strict and expects a directory with just the <code>.vcf.gz</code> files and nothing else, so to avoid any problems we create that directory automatically.
+</p>
+<p>
+If you have just one dataset:
 </p>
 
 ```bash
-cd /data/qc
+mkdir /data/qc/sample
+
+cd /data/qc/sample
 enigma-qc --bfile /data/raw/my_sample --study-name my_sample
 ```
 
 <p>
-And for multiple datasets.
+Alternatively, for multiple datasets:
 </p>
 
 ```bash
@@ -226,6 +240,11 @@ To merge all output files into a compact and portable <code>.zip</code> archive,
 ```bash
 make-archive --study-name my_sample
 ```
+
+<p>
+Add the `--zstd-compress` option to the command to use a more efficient compression algorithm. This will take longer to run, but will create a smaller output file (around 70% smaller).
+</p>
+
 </li>
 
 <li>
