@@ -64,7 +64,7 @@ fi
 if ! run_cmd cloudgene install /localdata/imputationserver.zip; then
     fail "ERROR: Cloudgene could not install the imputation server"
 fi
-if ! run_cmd cloudgene install /localdata/imputationserver/1000genomes-phase3.zip; then
+if ! run_cmd cloudgene install /localdata/1000genomes-phase3.zip; then
     fail "ERROR: Cloudgene could not install the reference genome"
 fi
 
