@@ -19,8 +19,8 @@ RUN mkdir -p -v /localdata/liftover && \
     file_name="${genome_reference}ToHg19.over.chain.gz"; \
     wget --progress=dot:mega -O "/localdata/liftover/${file_name}" "https://hgdownload.soe.ucsc.edu/goldenPath/${genome_reference}/liftOver/${file_name}"; \
     done
-RUN wget --progress=dot:mega -O "/localdata/imputationserver.zip" "https://github.com/genepi/imputationserver/releases/download/v1.7.4/imputationserver.zip" && \
-    wget --progress=dot:giga -O "/localdata/1000genomes-phase3.zip" "https://imputationserver.sph.umich.edu/static/downloads/releases/1000genomes-phase3-3.0.0.zip"
+RUN wget --progress=dot:mega -O "/localdata/imputationserver.zip" "https://github.com/genepi/imputationserver/releases/download/v1.7.5/imputationserver.zip" && \
+    wget --progress=dot:giga -O "/localdata/1000genomes-phase3.zip" "https://download.gwas.science/imputationserver/1000genomes-phase3-3.0.0.zip"
 
 FROM apache/hadoop:3
 USER root
