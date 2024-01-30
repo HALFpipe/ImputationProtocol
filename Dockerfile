@@ -62,8 +62,10 @@ RUN wget --progress=dot:giga -O "/tmp/conda.sh" "https://github.com/conda-forge/
     "python>=3.11" \
     "r-base" \
     "r-calibrate" \
+    "bioconductor-geneplotter" \
     "r-knitr" \
     "r-markdown" \
+    "r-rcolorbrewer" \
     "r-rmarkdown" \
     "r-ggplot2" \
     "r-data.table" \
