@@ -60,6 +60,7 @@ RUN wget --progress=dot:giga -O "/tmp/conda.sh" "https://github.com/conda-forge/
     "zstd" \
     "parallel" \
     "python>=3.11" \
+    "tqdm" \
     "r-base" \
     "r-calibrate" \
     "bioconductor-geneplotter" \

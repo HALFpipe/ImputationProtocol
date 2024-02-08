@@ -13,7 +13,8 @@
           config.allowUnfree = true;
         };
 
-        python = (pkgs.python311.withPackages (py: with py; [ ]));
+        python =
+          (pkgs.python311.withPackages (py: with py; [ tqdm types-tqdm ]));
       in {
         devShells.default =
           pkgs.mkShell { buildInputs = with pkgs; [ python ]; };
