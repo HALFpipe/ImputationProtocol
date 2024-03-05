@@ -102,35 +102,7 @@ The <code>--bind</code> (Singularity) or <code>--volume</code> (Docker) paramete
 
 <li>
 <p>
-Inside the container, we will first set up our local instance of the <a href="https://imputationserver.readthedocs.io/en/latest/">Michigan Imputation Server</a>.
-</p>
-<p>
-The <code>setup-hadoop</code> command will start a <a href="https://hadoop.apache.org/">Hadoop</a> instance on your computer, which consists of four background processes. When you are finished processing all your samples, you can stop them with the  <code>stop-hadoop</code> command. If you are using Docker, then these processes will be stopped automatically when you exit the container shell.
-</p>
-<p>
-The <code>setup-imputationserver</code> script will then verify that the Hadoop instance works, and then install the <a href="https://imputationserver.readthedocs.io/en/latest/reference-panels/#1000-genomes-phase-3-version-5">1000 Genomes Phase 3 v5</a> genome reference that will be used for imputation (around 15 GB of data, so it may take a while).
-</p>
-<p>
-If you are resuming analyses in an existing working directory, and do not still have the Hadoop background processes running, then you should re-run the setup commands. If they are still running, then you can skip this step.
-</p>
-
-```bash
-setup-hadoop --n-cores 8
-setup-imputationserver
-```
-
-<p>
-If you encounter any warnings or messages while running these commands, you should consult with an expert to find out what they mean and if they may be important. However, processing will usually complete without issues, even if some warnings occur. 
-</p>
-<p>
-If something important goes wrong, then you will usually see a clear error message that contains the word "error". Please note that if the commands take more than an hour to run the setup, then that may also indicate that an error occurred.
-</p>
-
-</li>
-
-<li>
-<p>
-Next, go to <code>/data/mds</code>, and run the script <code>enigma-mds</code> for your <code>.bed</code> file set. The script creates the files <code>mdsplot.pdf</code> and <code>HM3_b37mds2R.mds.csv</code>, which are summary statistics that you will need to share with your working group as per the <a href="https://enigma.ini.usc.edu/wp-content/uploads/2020/02/ENIGMA-1KGP_p3v5-Cookbook_20170713.pdf">ENIGMA Imputation Protocol</a>.
+Inside the container, we will first go to <code>/data/mds</code>, and run the script <code>enigma-mds</code> for your <code>.bed</code> file set. The script creates the files <code>mdsplot.pdf</code> and <code>HM3_b37mds2R.mds.csv</code>, which are summary statistics that you will need to share with your working group as per the <a href="https://enigma.ini.usc.edu/wp-content/uploads/2020/02/ENIGMA-1KGP_p3v5-Cookbook_20170713.pdf">ENIGMA Imputation Protocol</a>.
 </p>
 <p>
 Note that this script will create all output files in the current folder, so you should use <code>cd</code> to change to the <code>/data/mds/sample</code> folder before running it.
@@ -164,6 +136,34 @@ cd /data/mds/sample_b
 enigma-mds --bfile /data/raw/sample_b
 
 ```
+
+</li>
+
+<li>
+<p>
+Next, we will set up our local instance of the <a href="https://imputationserver.readthedocs.io/en/latest/">Michigan Imputation Server</a>.
+</p>
+<p>
+The <code>setup-hadoop</code> command will start a <a href="https://hadoop.apache.org/">Hadoop</a> instance on your computer, which consists of four background processes. When you are finished processing all your samples, you can stop them with the  <code>stop-hadoop</code> command. If you are using Docker, then these processes will be stopped automatically when you exit the container shell.
+</p>
+<p>
+The <code>setup-imputationserver</code> script will then verify that the Hadoop instance works, and then install the <a href="https://imputationserver.readthedocs.io/en/latest/reference-panels/#1000-genomes-phase-3-version-5">1000 Genomes Phase 3 v5</a> genome reference that will be used for imputation (around 15 GB of data, so it may take a while).
+</p>
+<p>
+If you are resuming analyses in an existing working directory, and do not still have the Hadoop background processes running, then you should re-run the setup commands. If they are still running, then you can skip this step.
+</p>
+
+```bash
+setup-hadoop --n-cores 8
+setup-imputationserver
+```
+
+<p>
+If you encounter any warnings or messages while running these commands, you should consult with an expert to find out what they mean and if they may be important. However, processing will usually complete without issues, even if some warnings occur. 
+</p>
+<p>
+If something important goes wrong, then you will usually see a clear error message that contains the word "error". Please note that if the commands take more than an hour to run the setup, then that may also indicate that an error occurred.
+</p>
 
 </li>
 
