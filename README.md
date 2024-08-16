@@ -119,7 +119,7 @@ If you have just one dataset:
 mkdir /data/mds/sample
 
 cd /data/mds/sample
-enigma-mds --bfile ../raw/my_sample
+enigma-mds --bfile /data/raw/my_sample
 ```
 
 <p>
@@ -281,10 +281,10 @@ plink --ped my_sample.ped --map my_sample.map --make-bed --out my_sample
 This error happens when your input data uses a different genome reference from what the imputation server expects (`hg19`). You can do this manually with [`LiftOver`](https://genome.sph.umich.edu/wiki/LiftOver). To automatically do that, the container comes with the `check hg19` command, which is based on the [RICOPILI](https://sites.google.com/a/broadinstitute.org/ricopili/) command `buigue`.
 
 ```bash
-check hg19 --bfile ../raw/my_sample 
+check hg19 --bfile /data/raw/my_sample 
 ```
 
-The command will create a `.bed` file set at `../raw/my_sample.hg19` which will have the correct genome reference. You should now use this corrected file to re-run the `enigma-qc` script, and then retry running the `imputationserver` command. 
+The command will create a `.bed` file set at `/data/raw/my_sample.hg19` which will have the correct genome reference. You should now use this corrected file to re-run the `enigma-qc` script, and then retry running the `imputationserver` command. 
 
 ### Strand flips
 
@@ -293,10 +293,10 @@ The command will create a `.bed` file set at `../raw/my_sample.hg19` which will 
 If the `imputationserver` command fails with this error, then you will need to resolve strand flips in your data. To automatically do that, the container comes with the `check flip` command, which is based on the [RICOPILI](https://sites.google.com/a/broadinstitute.org/ricopili/) called `checkflip4` and [check-bim](https://www.well.ox.ac.uk/~wrayner/tools/).
 
 ```bash
-check flip --bfile ../raw/my_sample
+check flip --bfile /data/raw/my_sample
 ```
 
-The command will create a `.bed` file set at `../raw/my_sample.check-flip` which will have all strand flips resolved. You should now use this corrected file to re-run the `enigma-qc` script, and then retry running the `imputationserver` command.
+The command will create a `.bed` file set at `/data/raw/my_sample.check-flip` which will have all strand flips resolved. You should now use this corrected file to re-run the `enigma-qc` script, and then retry running the `imputationserver` command.
 
 ### Velocity
 
