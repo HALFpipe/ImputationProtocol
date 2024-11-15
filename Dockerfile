@@ -12,17 +12,20 @@ RUN mkdir -p -v /localdata/mds && \
     for file_name in HM3_b37.bed HM3_b37.bim HM3_b37.fam; do \
     wget \
     --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:102.0) Gecko/20100101 Firefox/102.0" \
-    --progress=dot:giga -O - "https://genepi.qimr.edu.au/staff/sarahMe/enigma/MDS/${file_name}.gz" | gunzip > /localdata/mds/${file_name}; \
+    --progress=dot:giga --output-document="https://genepi.qimr.edu.au/staff/sarahMe/enigma/MDS/${file_name}.gz" | gunzip > /localdata/mds/${file_name}; \
     done
 RUN mkdir -p -v /localdata/liftover && \
+    pushd /localdata/liftover/ && \
     for genome_reference in hg16 hg17 hg18 hg38; do \
     file_name="${genome_reference}ToHg19.over.chain.gz"; \
-    wget --progress=dot:mega -O "/localdata/liftover/${file_name}" "https://hgdownload.soe.ucsc.edu/goldenPath/${genome_reference}/liftOver/${file_name}"; \
-    done
-ADD --chmod=655 \
+    wget --progress=dot:mega "https://hgdownload.soe.ucsc.edu/goldenPath/${genome_reference}/liftOver/${file_name}" && \
+    curl --silent "https://hgdownload.soe.ucsc.edu/goldenPath/${genome_reference}/liftOver/md5sum.txt" | grep "${file_name}" | md5sum --check || exit 1; \
+    done && \
+    popd
+ADD --chmod=655 --checksum=sha256:d441541008cfe7ae1c545631d57ac8ec3dbc646da2155cfce870c5303b133346 \
     "https://github.com/genepi/imputationserver/releases/download/v.1.7.5/imputationserver.zip" \
     "/localdata/imputationserver.zip"
-ADD --chmod=655 \
+ADD --chmod=655 --checksum=sha256:1910bebd658a406aa0f263bc886151b3060569c808aaf58dc149ad73b1283594  \
     "https://download.gwas.science/imputationserver/1000genomes-phase3-3.0.0.zip" \
     "/localdata/1000genomes-phase3.zip"
 
