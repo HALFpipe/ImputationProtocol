@@ -4,7 +4,7 @@ COPY src/extract-all /src/extract-all
 RUN cd /src/extract-all && \
     sbt assembly
 
-FROM apache/hadoop:3 as downloader
+FROM apache/hadoop:3 AS downloader
 USER root
 
 # Download data
@@ -12,7 +12,7 @@ RUN mkdir -p -v /localdata/mds && \
     for file_name in HM3_b37.bed HM3_b37.bim HM3_b37.fam; do \
     wget \
     --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:102.0) Gecko/20100101 Firefox/102.0" \
-    --progress=dot:giga --output-document="https://genepi.qimr.edu.au/staff/sarahMe/enigma/MDS/${file_name}.gz" | gunzip > /localdata/mds/${file_name}; \
+    --progress=dot:giga --output-document="-" "https://genepi.qimr.edu.au/staff/sarahMe/enigma/MDS/${file_name}.gz" | gunzip > /localdata/mds/${file_name}; \
     done
 RUN mkdir -p -v /localdata/liftover && \
     pushd /localdata/liftover/ && \
@@ -32,6 +32,9 @@ ADD --chmod=655 --checksum=sha256:1910bebd658a406aa0f263bc886151b3060569c808aaf5
 FROM apache/hadoop:3
 USER root
 
+RUN wget --progress=dot --output-document="/etc/yum.repos.d/CentOS-Base.repo" \
+    "https://el7.repo.almalinux.org/centos/CentOS-Base.repo"
+
 RUN yum install -y less which && \
     yum clean all -y && \
     sync && \
@@ -44,17 +47,18 @@ ENV CLOUDGENE_VERSION=2.6.3
 RUN mkdir /opt/cloudgene && \
     cd /opt/cloudgene && \
     curl --silent install.cloudgene.io | bash -s ${CLOUDGENE_VERSION}
-ENV PATH="/opt/cloudgene:/usr/local/mambaforge/bin:${PATH}" \
-    CPATH="/usr/local/mambaforge/include:${CPATH}" 
+ENV PATH="/opt/cloudgene:/opt/conda/bin:${PATH}" \
+    CPATH="/opt/conda/include:${CPATH}" 
 
 # Install additional software
 # and make sure `which` is available at `/usr/bin/which/ as per 
 # https://github.com/ContinuumIO/anaconda-issues/issues/11133
 # and ensure that thew newly installed shared libraries are available 
 # to all programs by updating `ldconfig`
-RUN wget --progress=dot:giga -O "/tmp/conda.sh" "https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-$(uname)-$(uname -m).sh" && \
-    bash /tmp/conda.sh -b -p /usr/local/mambaforge && \
-    rm -rf /tmp/* && \
+RUN wget --progress=dot:giga --output-document="conda.sh" \
+    "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh" && \
+    bash conda.sh -b -p /opt/conda && \
+    rm conda.sh && \
     sync && \
     conda config --system --append channels "bioconda" && \
     sync && \
@@ -67,6 +71,7 @@ RUN wget --progress=dot:giga -O "/tmp/conda.sh" "https://github.com/conda-forge/
     "r-base" \
     "r-calibrate" \
     "bioconductor-geneplotter" \
+    "r-kernsmooth" \
     "r-knitr" \
     "r-markdown" \
     "r-rcolorbrewer" \
@@ -81,9 +86,9 @@ RUN wget --progress=dot:giga -O "/tmp/conda.sh" "https://github.com/conda-forge/
     sync && \
     mamba clean --yes --all --force-pkgs-dirs && \
     sync && \
-    find /usr/local/mambaforge/ -follow -type f -name "*.a" -delete && \
+    find /opt/conda/ -follow -type f -name "*.a" -delete && \
     sync && \
-    echo /usr/local/mambaforge/lib > /etc/ld.so.conf.d/mambaforge.conf && \
+    echo /opt/conda/lib > /etc/ld.so.conf.d/mambaforge.conf && \
     sync && \
     ldconfig && \
     sync
