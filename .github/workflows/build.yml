@@ -10,122 +10,156 @@ on:
       - edited
 
 jobs:
-  docker_build:
+  build:
     runs-on: self-hosted
-    outputs:
-      tag: ${{ steps.build_tag.outputs.tag }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          check-latest: true
+      - name: Install Python dependencies
+        run: |
+          python -m pip install \
+            awscli \
+            pygithub
+
+      - name: Set up metadata
+        id: metadata
+        shell: python
+        run: |
+          import re
+          import os
+
+          from github import Github
+
+          pushed_at = "${{ github.event.repository.pushed_at }}"
+          ref = "${{ github.ref }}"
+          repository = "${{ github.repository }}"
+          sha = "${{ github.sha }}"
+          url = "${{ github.event.repository.html_url }}"
+
+          registry = "${{ secrets.REGISTRY }}"
+          token = "${{ secrets.GITHUB_TOKEN }}"
+
+          repository_data = Github(token).get_repo(repository)
+          repository_owner, repository_name = repository.split("/")
+          repository_name = re.sub(r"([a-z\d])([A-Z])", r"\1-\2", repository_name).lower()
+          reference, type, name = ref.split("/")[:3]
+          if reference != "refs":
+              raise ValueError(f"Unknown reference: {reference}")
+          if type == "heads":
+              tag = {"main": "latest"}.get(name, name)
+              push = True
+          elif type == "tags":
+              tag = name
+              push = True
+          else:
+              raise ValueError(f"Unknown reference type: {type}")
+
+          path = f"{registry}/{repository_name}"
+          cache_from = f"type=registry,ref={path}:buildcache"
+          output = dict(
+              cache_from=cache_from,
+              cache_to=f"{cache_from},compression=zstd,mode=max,image-manifest=true" if push else "",
+              labels=[
+                  f'org.opencontainers.image.created="{pushed_at}"',
+                  'org.opencontainers.image.authors="Lea Waller <lea@lea.science>"',
+                  f'org.opencontainers.image.url="{url}"',
+                  f'org.opencontainers.image.documentation="{url}"',
+                  f'org.opencontainers.image.source="{url}"',
+                  f'org.opencontainers.image.revision="{sha}"',
+                  f'org.opencontainers.image.title="{repository_name}"',
+                  f'org.opencontainers.image.description="{repository_data.description}"',
+              ],
+              push=str(push).lower(),
+              build_tag=f"{repository_name}:{tag}",
+              push_tags=[
+                  f"{path}:{tag}",
+                  f"docker.io/{repository_owner}/{repository_name}:{tag}",
+              ]
+              if push
+              else [],
+              singularity_name=f"{repository_name}-{tag}.sif",
+          )
+
+          with open(os.environ["GITHUB_OUTPUT"], "at") as file_handle:
+              for key, value in output.items():
+                  if isinstance(value, list):
+                      file_handle.write("\n".join([f"{key}<<eof", *value, "eof"]) + "\n")
+                  else:
+                      file_handle.write(f"{key}={value}\n")
+
       - name: Login to DockerHub
         uses: docker/login-action@v3
+        if: ${{ steps.metadata.outputs.push == 'true' }}
         with:
-          username: hippocampusgirl
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Login to container registry
         uses: docker/login-action@v3
+        if: ${{ steps.metadata.outputs.push == 'true' }}
         with:
           registry: ${{ secrets.REGISTRY }}
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
-      - name: Set up build tag
-        id: build_tag
-        shell: bash
-        env:
-          github_ref: ${{ github.ref }}
-          github_repository: ${{ github.repository }}
-        run: |
-          version=$(echo "${github_ref}" | cut -d '/' -f 3)
-          if [[ "$version" == "main" ]]; then
-            version=latest
-          fi
-          owner=$( \
-            echo "${github_repository}" | \
-            cut -d'/' -f1 | \
-            tr '[:upper:]' '[:lower:]' \
-          )
-          name=$( \
-            echo "${github_repository}" | \
-            cut -d'/' -f2 | \
-            sed -r 's/([A-Za-z0-9])([A-Z])([a-z0-9])/\1-\L\2\3/g' | \
-            tr '[:upper:]' '[:lower:]' \
-          )
-          echo "repo=${name}" >> ${GITHUB_OUTPUT}
-          echo "tag=${name}:${version}" >> ${GITHUB_OUTPUT}
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Build and push to container registry
-        uses: docker/build-push-action@v5
+      - name: Build container
+        uses: docker/build-push-action@v6
         with:
+          cache-from: ${{ steps.metadata.outputs.cache_from }}
+          cache-to: ${{ steps.metadata.outputs.cache_to }}
           context: "."
           file: "./Dockerfile"
-          platforms: linux/amd64
-          cache-from: type=registry,ref=${{ secrets.REGISTRY }}/${{ steps.build_tag.outputs.repo }}:buildcache
-          cache-to: type=registry,ref=${{ secrets.REGISTRY }}/${{ steps.build_tag.outputs.repo }}:buildcache,compression=zstd,mode=max
-          outputs: type=image,name=${{ secrets.REGISTRY }}/${{ steps.build_tag.outputs.tag }},push=true,compression=gzip,compression-level=9,force-compression=true
           labels: |
-            org.opencontainers.image.title=${{ github.event.repository.name }}
-            org.opencontainers.image.url=${{ github.event.repository.html_url }}
-            org.opencontainers.image.source=${{ github.event.repository.html_url }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.created=${{ github.event.repository.updated_at}}
+            ${{ steps.metadata.outputs.labels }}
+          load: true
+          platforms: linux/amd64
+          push: false
+          tags: |
+            ${{ steps.metadata.outputs.build_tag }}
 
-  singularity_build:
-    runs-on: self-hosted
-    needs:
-      - docker_build
-    defaults:
-      run:
-        shell: bash --login -x -e {0}
-    steps:
-      - uses: conda-incubator/setup-miniconda@v2
+      - name: Push container to registry
+        if: ${{ steps.metadata.outputs.push == 'true' }}
+        uses: docker/build-push-action@v6
         with:
-          miniforge-variant: Mambaforge
-          miniforge-version: latest
-          auto-activate-base: true
-          activate-environment: ""
-          use-mamba: true
+          cache-from: ${{ steps.metadata.outputs.cache_from }}
+          context: "."
+          file: "./Dockerfile"
+          labels: |
+            ${{ steps.metadata.outputs.labels }}
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.metadata.outputs.push_tags }}
 
-      - name: Set up Singularity
+      - name: Set up Apptainer
         run: |
-          mamba install --yes singularity
+          sudo add-apt-repository --yes "ppa:apptainer/ppa"
+          sudo apt install --yes "apptainer"
 
-      - name: Singularity build
-        id: singularity_build
+      - name: Build Apptainer container
+        if: ${{ steps.metadata.outputs.push == 'true' }}
         env:
-          docker_build_tag: ${{ needs.docker_build.outputs.tag }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: ${{ secrets.AWS_ENDPOINT_URL }}
         run: |
-          # Configure Singularity to not use the host's /tmp folder 
-          # because it is too small
-          export SINGULARITY_TMPDIR="${PWD}"
-          # Build Singularity image from Docker image
-          singularity_build_name=$(echo -n ${docker_build_tag} | tr -c '[:alnum:]' '-')
-          singularity build --disable-cache \
-            ${singularity_build_name}.sif \
-            docker://${{ secrets.REGISTRY }}/${docker_build_tag}
-          echo "name=${singularity_build_name}" >> ${GITHUB_OUTPUT}
-
-      - name: Upload to DigitalOcean
-        env:
-          digitalocean_access_key: ${{ secrets.DIGITALOCEAN_ACCESS_KEY }}
-          digitalocean_secret_key: ${{ secrets.DIGITALOCEAN_SECRET_KEY }}
-          digitalocean_region: ${{ secrets.DIGITALOCEAN_REGION }}
-          digitalocean_space_name: ${{ secrets.DIGITALOCEAN_SPACE_NAME }}
-          singularity_build_name: ${{ steps.singularity_build.outputs.name }}
-        run: |
-          pip install s3cmd
-          s3cmd --stop-on-error \
-            --ssl --no-encrypt \
-            --access_key="${digitalocean_access_key}" \
-            --secret_key="${digitalocean_secret_key}" \
-            --host="${digitalocean_region}.digitaloceanspaces.com" \
-            --host-bucket="%(bucket)s.${digitalocean_region}.digitaloceanspaces.com" \
-            --dump-config \
-            > ${HOME}/.s3cfg
-          s3cmd put ${singularity_build_name}.sif s3://${digitalocean_space_name}/singularity/
-          s3cmd setacl s3://${digitalocean_space_name}/singularity/${singularity_build_name}.sif --acl-public
+          mkdir "apptainer"
+          apptainer build \
+            --disable-cache \
+            "./apptainer/${{ steps.metadata.outputs.singularity_name }}" \
+            "docker-daemon://${{ steps.metadata.outputs.build_tag }}"
+          image_file=$(find "./apptainer" -type f | head --lines=1)
+          # Check if the container works
+          apptainer exec "${image_file}" score --help
+          # Upload the container
+          aws s3 mv \
+            --acl public-read \
+            "${image_file}" \
+            "s3://download-gwas-science/singularity/"
