@@ -47,7 +47,9 @@ jobs:
 
           repository_data = Github(token).get_repo(repository)
           repository_owner, repository_name = repository.split("/")
+          repository_owner = repository_owner.lower()
           repository_name = re.sub(r"([a-z\d])([A-Z])", r"\1-\2", repository_name).lower()
+          
           reference, type, name = ref.split("/")[:3]
           if reference != "refs":
               raise ValueError(f"Unknown reference: {reference}")
