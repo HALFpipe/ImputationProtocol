@@ -76,7 +76,6 @@ jobs:
                   f'org.opencontainers.image.description="{repository_data.description}"',
               ],
               push=str(push).lower(),
-              build_tag=f"{repository_name}:{tag}",
               push_tags=[
                   f"{path}:{tag}",
                   f"docker.io/{repository_owner}/{repository_name}:{tag}",
@@ -109,26 +108,13 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Build container
-        uses: docker/build-push-action@v6
-        with:
-          cache-from: ${{ steps.metadata.outputs.cache_from }}
-          cache-to: ${{ steps.metadata.outputs.cache_to }}
-          context: "."
-          file: "./Dockerfile"
-          labels: |
-            ${{ steps.metadata.outputs.labels }}
-          load: true
-          platforms: linux/amd64
-          push: false
-          tags: |
-            ${{ steps.metadata.outputs.build_tag }}
 
-      - name: Push container to registry
+      - name: Build and push container
         if: ${{ steps.metadata.outputs.push == 'true' }}
         uses: docker/build-push-action@v6
         with:
           cache-from: ${{ steps.metadata.outputs.cache_from }}
+          cache-to: ${{ steps.metadata.outputs.cache_to }}
           context: "."
           file: "./Dockerfile"
           labels: |
@@ -151,10 +137,11 @@ jobs:
           AWS_ENDPOINT_URL: ${{ secrets.AWS_ENDPOINT_URL }}
         run: |
           mkdir "apptainer"
+          push_tags=(${{ steps.metadata.outputs.push_tags }})
           apptainer build \
             --disable-cache \
             "./apptainer/${{ steps.metadata.outputs.singularity_name }}" \
-            "docker-daemon://${{ steps.metadata.outputs.build_tag }}"
+            "docker://${push_tags[0]}"
           image_file=$(find "./apptainer" -type f | head --lines=1)
           # Check if the container works
           apptainer exec "${image_file}" score --help
